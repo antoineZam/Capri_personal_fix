@@ -235,6 +235,25 @@ test('avatar leaves on its current display, hops to fresh points and returns to 
   assert.ok(overlays[0].isDestroyed());
 });
 
+test('automatic hops do not gravitate to screen corners when no spot is clear', async () => {
+  const { controller, content, commands } = fixture();
+  assert.equal(await controller.leave(geometry, sprite, canvas), true);
+  // The companion window covers the whole display, so no candidate is clear.
+  Object.assign(content, { x: area.x, y: area.y, width: area.width, height: area.height });
+  let corners = 0;
+  for (let i = 0; i < 100; i++) {
+    assert.equal(await controller.hop(), true);
+    const { to, anchor } = commands.at(-1);
+    const left = to.x - anchor.x * to.scale;
+    const top = to.y - anchor.y * to.scale;
+    const nearX = Math.min(left, area.width - left - to.scale) < 64;
+    const nearY = Math.min(top, area.height - top - to.scale) < 64;
+    if (nearX && nearY) corners++;
+  }
+  assert.ok(corners <= 5, `${corners} of 100 hops landed in a screen corner`);
+  controller.reset();
+});
+
 test('return uses the current expanded frame and reserves its sprite for the companion window', async () => {
   const updated = {
     rect: { x: 40, y: 72, width: 270, height: 270 },

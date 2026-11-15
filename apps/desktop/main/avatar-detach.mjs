@@ -166,31 +166,34 @@ function tetherStyle({
   return avatarDragTether && intensity > 0 ? { intensity, chaos, deadZone } : null;
 }
 
-function landing(area, content, origin, scale, anchor, seen) {
-  const inset = Math.min(18, area.width * 0.04, area.height * 0.04);
-  const maxX = Math.floor(area.width - scale - inset);
-  const maxY = Math.floor(area.height - scale - inset);
+function landingRange(size, scale, inset) {
   const min = Math.ceil(inset);
+  const max = Math.floor(size - scale - inset);
+  if (max >= min) return [min, max];
+  const middle = Math.max(0, Math.floor((size - scale) / 2));
+  return [middle, middle];
+}
+
+function landing(area, content, origin, scale, anchor, seen, random = randomInt) {
+  // Keep a sprite-relative margin and aim for a comfortable hop. Screen
+  // corners are not candidates, and "farthest wins" no longer applies.
+  const inset = Math.max(24, Math.min(64, scale * 0.15));
+  const [minX, maxX] = landingRange(area.width, scale, inset);
+  const [minY, maxY] = landingRange(area.height, scale, inset);
   const occupied = { ...content, x: content.x - area.x, y: content.y - area.y };
-  const gap = Math.min(180, Math.hypot(maxX - min, maxY - min) * 0.29);
+  const reach = Math.hypot(maxX - minX, maxY - minY);
+  const ideal = reach * (0.25 + (random(0, 1001) / 1000) * 0.3);
   let best;
-  for (const [left, top] of [
-    ...Array.from({ length: 24 }, () => [randomInt(min, maxX + 1), randomInt(min, maxY + 1)]),
-    [min, min],
-    [min, maxY],
-    [maxX, min],
-    [maxX, maxY],
-  ]) {
+  for (let attempt = 0; attempt < 48; attempt++) {
+    const left = random(minX, maxX + 1);
+    const top = random(minY, maxY + 1);
     const key = left + ',' + top;
     if (seen.has(key)) continue;
     const x = left + anchor.x * scale;
     const y = top + anchor.y * scale;
-    const distance = Math.hypot(x - origin.x, y - origin.y);
     const clear = !intersection(occupied, { x: left, y: top, width: scale, height: scale });
-    const point = { x, y, scale, key };
-    if (clear && distance >= gap) return point;
-    const score = distance + (clear ? gap : 0);
-    if (!best || score > best.score) best = { point, score };
+    const score = (clear ? 0 : 1e6) + Math.abs(Math.hypot(x - origin.x, y - origin.y) - ideal);
+    if (!best || score < best.score) best = { point: { x, y, scale, key }, score };
   }
   if (!best) throw new Error('No new position is available on this display.');
   return best.point;
