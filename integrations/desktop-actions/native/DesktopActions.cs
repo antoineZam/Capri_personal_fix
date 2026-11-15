@@ -916,6 +916,7 @@ class DesktopActions {
     }
     [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr window,int command);
     [DllImport("user32.dll")] static extern bool IsIconic(IntPtr window);
+    [DllImport("user32.dll")] static extern bool IsZoomed(IntPtr window);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
     static bool FocusApplication(IntPtr window) {
         if(IsIconic(window))ShowWindow(window,9);
@@ -1175,8 +1176,9 @@ class DesktopActions {
                 if(requested.Length>0&&window.ToInt64().ToString()!=requested)return true;
                 uint pid;GetWindowThreadProcessId(window,out pid);
                 int cloaked;InputRect rect;
+                // A maximized window has no outer top edge on screen, and the perch follower drops it.
                 if((pid==ignored&&window.ToInt64().ToString()!=allowed)||pid==0||!IsWindowVisible(window)||IsIconic(window)||
-                    (DwmGetWindowAttribute(window,14,out cloaked,4)==0&&cloaked!=0))return true;
+                    IsZoomed(window)||(DwmGetWindowAttribute(window,14,out cloaked,4)==0&&cloaked!=0))return true;
                 var name=new StringBuilder(128);GetClassName(window,name,name.Capacity);
                 string windowClass=name.ToString();
                 if(windowClass=="Shell_TrayWnd"||windowClass=="Shell_SecondaryTrayWnd"||windowClass=="Progman"||windowClass=="WorkerW")return true;
