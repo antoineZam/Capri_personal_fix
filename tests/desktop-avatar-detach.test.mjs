@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import test from 'node:test';
-import { AvatarDetach, avatarDragCanTeleport } from '../apps/desktop/main/avatar-detach.mjs';
+import {
+  AvatarDetach,
+  avatarDragCanTeleport,
+  dockFits,
+} from '../apps/desktop/main/avatar-detach.mjs';
 import {
   avatarDockFrame,
   avatarDockPoint,
@@ -233,6 +237,36 @@ test('avatar leaves on its current display, hops to fresh points and returns to 
   assert.deepEqual(phases.slice(-2), ['returning', 'attached']);
   assert.equal(overlays.length, 1);
   assert.ok(overlays[0].isDestroyed());
+});
+
+test('a dock fits only when the pose can touch its contact without being pushed back on screen', () => {
+  // pose-sit-edge: the seated body rises about 0.53 x scale above the seat contact.
+  const seat = {
+    anchor: { x: 599, y: 773, name: 'seat' },
+    visibleBounds: { x: 183, y: 110, width: 887, height: 1067 },
+  };
+  const anchor = { x: seat.anchor.x / canvas.width, y: seat.anchor.y / canvas.height };
+  const workArea = { x: -1920, y: 0, width: 1920, height: 1032 };
+  const fits = (point) => dockFits(point, workArea, 240, anchor, seat.visibleBounds, canvas);
+  assert.equal(fits({ x: -1100, y: 0 }), false, 'a snapped window top has no headroom');
+  assert.equal(fits({ x: -1100, y: 200 }), true);
+  assert.equal(fits({ x: -10, y: 400 }), false, 'the body would leave the right edge');
+  assert.equal(fits({ x: -1100, y: 2 }), false);
+  // pose-dock-right lets about 9 px of fingers wrap past a right screen-edge contact.
+  const hang = {
+    anchor: { x: 994, y: 505, name: 'dock-right' },
+    visibleBounds: { x: 212, y: 75, width: 831, height: 1103 },
+  };
+  const hangAnchor = { x: hang.anchor.x / canvas.width, y: hang.anchor.y / canvas.height };
+  assert.equal(
+    dockFits({ x: 0, y: 500 }, workArea, 240, hangAnchor, hang.visibleBounds, canvas),
+    true,
+  );
+  const { controller } = fixture();
+  // Before the avatar leaves its frame, the largest detached scale (240 px) is assumed.
+  assert.equal(controller.fitsDock(seat, canvas, { x: -1100, y: 0 }, { workArea }), false);
+  assert.equal(controller.fitsDock(seat, canvas, { x: -1100, y: 200 }, { workArea }), true);
+  assert.equal(controller.fitsDock(seat, canvas, { x: -1100, y: 200 }, null), false);
 });
 
 test('automatic hops do not gravitate to screen corners when no spot is clear', async () => {

@@ -100,6 +100,15 @@ function anchoredPoint(seat, area, scale, anchor, visible, canvas) {
   };
 }
 
+/** False when anchoredPoint() would have to push the pose away from its contact point. */
+export function dockFits(seat, area, scale, anchor, visible, canvas, tolerance) {
+  if (!seat || !area || !anchor || !visible || !canvas || !(scale > 0)) return false;
+  // Edge poses may let a few authored pixels (fingers) wrap past their contact.
+  tolerance ??= Math.max(4, scale * 0.05);
+  const placed = anchoredPoint(seat, area, scale, anchor, visible, canvas);
+  return Math.hypot(placed.x - (seat.x - area.x), placed.y - (seat.y - area.y)) <= tolerance;
+}
+
 function focusPose(point, anchor, { x, y, width, height }, canvas) {
   return {
     ...point,
@@ -763,6 +772,17 @@ export class AvatarDetach {
         if (!target.isDestroyed()) target.destroy();
       }
     }
+  }
+
+  /** Whether a dock pose can touch its contact point on that display at the sprite's scale. */
+  fitsDock(frame, canvas, seat, display) {
+    const area = display?.workArea;
+    if (!frame?.anchor || !frame.visibleBounds || !area) return false;
+    // Same scale as cursorDestination(); before leaving the frame, assume the
+    // largest detached scale that leave() can choose.
+    const scale = Math.min(this.session?.scale ?? 240, area.width * 0.42, area.height * 0.48);
+    const anchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
+    return dockFits(seat, area, scale, anchor, frame.visibleBounds, canvas);
   }
 
   setPhase(phase) {
