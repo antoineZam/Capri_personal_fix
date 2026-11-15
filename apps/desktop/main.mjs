@@ -3853,14 +3853,25 @@ async function initializeDesktop() {
       )
         return;
     }
+    const wasPerched = Boolean(perch);
+    const arrival = wasPerched && avatarTravelPose(desktopFrame ?? frameIds.get('neutral'), true);
+    const session = avatarDetach.session;
+    const landingAnchor = arrival?.frame?.anchor
+      ? {
+          x: arrival.frame.anchor.x / catalog.canvas.width,
+          y: arrival.frame.anchor.y / catalog.canvas.height,
+        }
+      : session?.anchor;
     const point = randomAvatarDestination(
       display.workArea,
       window.getBounds(),
       avatarDetach.desktopPoint,
+      Math.random,
+      session?.point?.scale && landingAnchor
+        ? { scale: session.point.scale, anchor: landingAnchor }
+        : undefined,
     );
     if (!point || !allowed()) return;
-    const wasPerched = Boolean(perch);
-    const arrival = wasPerched && avatarTravelPose(desktopFrame ?? frameIds.get('neutral'), true);
     clearPerch();
     try {
       await launchAvatarTo(point, allowed, undefined, arrival);

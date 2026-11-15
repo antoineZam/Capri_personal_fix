@@ -57,3 +57,14 @@ test('automatic landing stays on the selected monitor and avoids the companion a
     null,
   );
 });
+
+test('automatic landing keeps the whole sprite clear of the companion window', () => {
+  const area = { x: -1400, y: 40, width: 1400, height: 960 };
+  const owner = { x: -480, y: 400, width: 460, height: 550 };
+  const sprite = { scale: 240, anchor: { x: 0.5, y: 0.93 } };
+  // The first feet point is 80 px left of the companion: clear for the feet,
+  // but the 240 px sprite would overlap the window.
+  const values = [0.6351, 0.55, 0.36, 0.55];
+  const point = randomAvatarDestination(area, owner, null, () => values.shift() ?? 0, sprite);
+  assert.deepEqual(point, { x: -845, y: 657 });
+});

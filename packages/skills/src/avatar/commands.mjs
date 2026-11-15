@@ -48,19 +48,34 @@ export function desktopAvatarCommand(text) {
   return null;
 }
 
-export function randomAvatarDestination(area, owner, previous, random = Math.random) {
-  for (let attempt = 0; attempt < 12; attempt++) {
+const defaultLandingSprite = Object.freeze({
+  scale: 240,
+  anchor: Object.freeze({ x: 0.5, y: 0.93 }),
+});
+
+/** The returned point is the sprite anchor; the whole sprite box must clear the companion. */
+export function randomAvatarDestination(
+  area,
+  owner,
+  previous,
+  random = Math.random,
+  sprite = defaultLandingSprite,
+  margin = 24,
+) {
+  const { scale, anchor } = sprite;
+  for (let attempt = 0; attempt < 32; attempt++) {
     const point = {
       x: Math.round(area.x + area.width * (0.13 + random() * 0.74)),
       y: Math.round(area.y + area.height * (0.34 + random() * 0.55)),
     };
-    if (
-      (point.x < owner.x - 40 ||
-        point.x >= owner.x + owner.width + 40 ||
-        point.y < owner.y ||
-        point.y >= owner.y + owner.height + 40) &&
-      (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) >= 140)
-    )
+    const left = point.x - anchor.x * scale;
+    const top = point.y - anchor.y * scale;
+    const overlaps =
+      left < owner.x + owner.width + margin &&
+      left + scale > owner.x - margin &&
+      top < owner.y + owner.height + margin &&
+      top + scale > owner.y - margin;
+    if (!overlaps && (!previous || Math.hypot(point.x - previous.x, point.y - previous.y) >= 140))
       return point;
   }
   return null;
