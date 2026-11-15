@@ -3545,6 +3545,16 @@ async function initializeDesktop() {
       : screen.screenToDipPoint(avatarDockPoint(target, dock));
   }
 
+  function dockArrivalFrame(dock) {
+    return desktopFrame?.id === 'pose-sleep' ? desktopFrame : avatarDockFrame(dockFrames, dock);
+  }
+
+  /** A dock whose pose would be clamped away from its contact is refused, not squeezed in. */
+  function dockFitsAt(dock, seat, display = dock.display ?? screen.getDisplayNearestPoint(seat)) {
+    const frame = dockArrivalFrame(dock);
+    return Boolean(frame && avatarDetach?.fitsDock(frame, catalog.canvas, seat, display));
+  }
+
   async function tryAvatarDock(point, stillAllowed = () => true, grab) {
     if (!canTeleport() || !stillAllowed()) return false;
     const display = screen.getDisplayNearestPoint(point);
@@ -3564,7 +3574,8 @@ async function initializeDesktop() {
     }).catch(() => null);
     if (!canTeleport() || !stillAllowed()) return false;
     const dock = target && nearestAvatarDock(native, target, nativeRadius);
-    if (dock && visibleAvatarDock(dock, windowDock(target, dock), display.workArea))
+    const contact = dock && windowDock(target, dock);
+    if (dock && visibleAvatarDock(dock, contact, display.workArea) && dockFitsAt(dock, contact))
       return perchOn(target, null, dock, grab, stillAllowed);
     return screenDock ? perchAtEdge() : false;
   }
@@ -3677,8 +3688,7 @@ async function initializeDesktop() {
     grab,
     stillAllowed = () => true,
   ) {
-    const arrival =
-      desktopFrame?.id === 'pose-sleep' ? desktopFrame : avatarDockFrame(dockFrames, dock);
+    const arrival = dockArrivalFrame(dock);
     if (
       (!target && !dock.display) ||
       !arrival ||
@@ -3688,6 +3698,7 @@ async function initializeDesktop() {
     )
       return false;
     const seat = dock.display ? avatarDockPoint(dock.bounds, dock) : windowDock(target, dock);
+    if (!dockFitsAt(dock, seat)) return false;
     const record = target && {
       windowId: target.windowId,
       processId: target.processId,
