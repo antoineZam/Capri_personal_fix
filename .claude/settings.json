@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git fetch*)",
+      "Bash(git rev-parse*)",
+      "Bash(git branch*)",
+      "Bash(git switch*)",
+      "Bash(git -C E:/git/CapriCore status*)",
+      "Bash(git -C E:/git/CapriCore log*)",
+      "Bash(git -C E:/git/CapriCore diff*)",
+      "Bash(git -C E:/git/CapriCore show*)",
+      "Bash(git -C E:/git/CapriCore fetch*)",
+      "Bash(*/node.exe --test *)",
+      "Bash(*/node.exe --check *)",
+      "Bash(*/node.exe .claude/skills/capri-test/scripts/compare-tests.mjs*)",
+      "Bash(npx --yes prettier@3.6.2 --check *)"
+    ],
+    "deny": [
+      "Bash(git push upstream*)",
+      "Bash(git -C E:/git/CapriCore push upstream*)",
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git -C E:/git/CapriCore push --force*)",
+      "Bash(git -C E:/git/CapriCore push -f*)",
+      "Bash(git remote set-url*)",
+      "Bash(git -C E:/git/CapriCore remote set-url*)"
+    ],
+    "additionalDirectories": [
+      "~/Documents/Obsidian Vault/Perso/Informatique",
+      "~/.capri-sync",
+      "~/AppData/Local/Programs/Capri/logs"
+    ]
+  }
+}
