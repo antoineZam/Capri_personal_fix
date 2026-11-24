@@ -740,7 +740,7 @@ export class AvatarDetach {
     this.replyGeometryEpoch++;
     const { workArea: area } = display;
     const anchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
-    const scale = areaScale(session.point.scale, area);
+    const scale = this.fitScale(area);
     let point = anchoredPoint(seat, area, scale, anchor, frame.visibleBounds, canvas);
     if (['reviewed_pose', 'reviewed_music'].includes(frame.kind))
       point = focusPose(point, anchor, frame.visibleBounds, canvas);

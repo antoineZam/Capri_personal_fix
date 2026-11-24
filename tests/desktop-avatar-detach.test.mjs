@@ -913,6 +913,30 @@ test('a perched frame tracks across displays without replaying teleport', async 
   controller.reset();
 });
 
+test('a perch followed across a small display regains the detached scale', async () => {
+  const small = { id: 9, workArea: { x: 0, y: -700, width: 400, height: 880 } };
+  const { controller, display } = fixture({ targetDisplay: small, parked: () => true });
+  const seated = {
+    anchor: { name: 'seat', x: 600, y: 790 },
+    visibleBounds: { x: 240, y: 195, width: 850, height: 955 },
+    url: 'capri://desktop/sprites/desktop-perch-neutral.png',
+  };
+  await controller.leave(geometry, sprite, canvas);
+  const { scale } = controller.session;
+  assert.ok(scale > 400 * 0.42, 'the fixture sprite is larger than the small display allows');
+  assert.equal(
+    await controller.followFrame(seated, canvas, null, { x: 200, y: -300 }, small),
+    true,
+  );
+  assert.equal(controller.session.point.scale, 400 * 0.42);
+  assert.equal(
+    await controller.followFrame(seated, canvas, null, { x: -600, y: 200 }, display),
+    true,
+  );
+  assert.equal(controller.session.point.scale, scale);
+  controller.reset();
+});
+
 test('native pointer picks the independently drawn right grip through a padded grab box', async () => {
   const parts = [];
   const preferences = [];
