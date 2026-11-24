@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 // Real Electron settings and automatic teleports, using isolated data and a loopback fixture.
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -26,8 +27,24 @@ const env = {
   CAPRI_DESKTOP_VERIFICATION_MOCK_PACKS: '0',
 };
 delete env.ELECTRON_RUN_AS_NODE;
-let application;
+// Two external app windows to sit on: Capri's own windows are never roaming surfaces.
+const fixtureScript = `Add-Type -AssemblyName System.Windows.Forms
+$forms = foreach ($x in 240, 820) {
+  $form = New-Object System.Windows.Forms.Form
+  $form.Text = 'Capri roaming fixture'
+  $form.StartPosition = 'Manual'
+  $form.Bounds = New-Object System.Drawing.Rectangle($x, 320, 520, 380)
+  $form.Show()
+  $form
+}
+[System.Windows.Forms.Application]::Run($forms[0])`;
+let application, fixtures;
 try {
+  fixtures = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', fixtureScript], {
+    windowsHide: true,
+    stdio: 'ignore',
+  });
+  await new Promise((resolve) => setTimeout(resolve, 2000));
   application = await _electron.launch({
     executablePath: createRequire(import.meta.url)('electron'),
     args: [path.join(root, 'apps/desktop/main.mjs'), '--verification'],
@@ -76,17 +93,27 @@ try {
   report.checks.push(
     'Enabled roaming leaves the home frame automatically without screen observation.',
   );
-  const before = await owner.evaluate(
-    () => window.__roamingPhases.filter((phase) => phase === 'detached').length,
-  );
-  console.log('Waiting for the next scheduled move (30–36 s).');
-  await owner.waitForFunction(
-    (count) => window.__roamingPhases.filter((phase) => phase === 'detached').length > count,
-    before,
-    { timeout: 45000 },
-  );
-  report.checks.push('A second automatic move completes using the selected interval.');
+  // The next move may glide along the same edge, which plays no teleport phase, and
+  // landing on the active window doubles the pause: wait, then read the decision log.
+  console.log('Waiting for the next scheduled move (30–72 s).');
+  await new Promise((resolve) => setTimeout(resolve, 80000));
   const reopened = await settingsView(application, 'avatar-skill');
+  const { roaming } = await reopened.evaluate(() => window.capri.developerDiagnostics());
+  const moves = roaming.decisions.filter(({ result }) => result !== 'perch failed');
+  assert.ok(moves.length >= 2, JSON.stringify(roaming.decisions));
+  report.checks.push('A second automatic move completes using the selected interval.');
+  assert.ok(
+    moves.some(({ kind }) => kind !== 'free'),
+    JSON.stringify(moves),
+  );
+  assert.ok(
+    roaming.decisions.every((decision) =>
+      Object.values(decision).every(
+        (value) => typeof value !== 'string' || !value.includes('fixture'),
+      ),
+    ),
+  );
+  report.checks.push('Roaming lands on app windows or the taskbar and logs no window titles.');
   assert.equal(await reopened.locator('#avatar-roaming').isChecked(), true);
   assert.equal(await reopened.locator('#avatar-roam-interval').inputValue(), '30');
   assert.equal(await reopened.locator('#avatar-roam-windows').isChecked(), true);
@@ -103,6 +130,7 @@ try {
   report.passed = true;
 } finally {
   writeFileSync(path.join(folder, 'report.json'), JSON.stringify(report, null, 2));
+  fixtures?.kill();
   await application?.close();
   server.closeAllConnections();
   await new Promise((resolve) => server.close(resolve));
