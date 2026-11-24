@@ -1218,10 +1218,29 @@ class DesktopActions {
             return active??first??D("ok",true,"windowId",null);
         }finally{if(previous!=IntPtr.Zero)DpiContext(previous);}
     }
+    // Window frames front to back for roaming. Geometry only: the one string is the window id.
+    static object AvatarSurfaces(Dictionary<string,object> q){
+        uint ignored,pid;InputRect rect;UInt32.TryParse(Text(q,"ignoreProcessId"),out ignored);
+        IntPtr foreground=GetForegroundWindow(),previous=DpiContext(new IntPtr(-4));
+        var windows=new List<Dictionary<string,object>>();
+        try{
+            EnumWindows((window,unused)=>{
+                if(!AvatarFrame(window,ignored,"",out pid,out rect))return true;
+                int style=GetWindowStyle(window,-20),width=rect.right-rect.left,height=rect.bottom-rect.top;
+                // Click-through overlays never hide an edge; tiny helpers would only take a slot.
+                if((style&0x80020)==0x80020||width<8||height<8)return true;
+                windows.Add(D("windowId",window.ToInt64().ToString(),"x",rect.left,"y",rect.top,"width",width,"height",height,
+                    "perch",(style&0x80)==0&&!IsZoomed(window)&&AvatarTarget(window,rect),"foreground",window==foreground));
+                return windows.Count<32;
+            },IntPtr.Zero);
+        }finally{if(previous!=IntPtr.Zero)DpiContext(previous);}
+        return D("ok",true,"windows",windows);
+    }
     static object Execute(Dictionary<string,object> q){
         string action=Text(q,"action"),app=Text(q,"app");
         if(action.StartsWith("computer_",StringComparison.Ordinal))return Computer(q,action);
         if(action=="avatar_window")return AvatarWindow(q);
+        if(action=="avatar_surfaces")return AvatarSurfaces(q);
         if(action=="catalog_discover")return DiscoverApplications(q);
         if(action=="catalog_drives")return D("ok",true,"drives",DriveInfo.GetDrives().Where(d=>d.DriveType==DriveType.Fixed&&d.IsReady).Select(d=>d.RootDirectory.FullName.ToUpperInvariant()).ToArray());
         if(action=="file_replace")return ReplaceTextFile(q);
