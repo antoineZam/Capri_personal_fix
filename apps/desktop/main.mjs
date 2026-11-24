@@ -329,8 +329,10 @@ import {
   avatarClickGenerator,
 } from './avatar-click-reactions.mjs';
 import {
+  MIRRORED_SEAT,
   avatarDockFrame,
   avatarDockPoint,
+  mirrorPose,
   nearestAvatarDock,
   nearestDisplayAvatarDock,
   pointInReservedDesktop,
@@ -556,6 +558,8 @@ async function initializeDesktop() {
       ),
   });
   const dockFrames = new Map(catalog.desktopPoseFrames.map((frame) => [frame.id, frame]));
+  const seatPose = dockFrames.get('pose-sit-edge');
+  if (seatPose) dockFrames.set(MIRRORED_SEAT, mirrorPose(seatPose, catalog.canvas));
   console.log('Capri avatar:', JSON.stringify(installedAvatar.diagnostics));
   const spriteFile = catalog.sprites.find((sprite) => sprite.id === catalog.defaultId).file;
   const avatarFile = path.join(state, 'avatar.json');
@@ -622,6 +626,8 @@ async function initializeDesktop() {
       .map((frame) => [frame.id, frame]),
   );
   function maskFor(id, artwork = frameIds.get(id)) {
+    // Masks stay in source orientation; mirrored poses flip the probe instead.
+    artwork = artwork?.source ?? artwork;
     if (masks.has(id)) {
       const value = masks.get(id);
       masks.delete(id);
@@ -3555,6 +3561,11 @@ async function initializeDesktop() {
     return Boolean(frame && avatarDetach?.fitsDock(frame, catalog.canvas, seat, display));
   }
 
+  /** A dock's DIP contact is on its display and the pose touches it without clamping. */
+  function dockFitsHere(dock, contact, display = screen.getDisplayNearestPoint(contact)) {
+    return visibleAvatarDock(dock, contact, display.workArea) && dockFitsAt(dock, contact, display);
+  }
+
   async function tryAvatarDock(point, stillAllowed = () => true, grab) {
     if (!canTeleport() || !stillAllowed()) return false;
     const display = screen.getDisplayNearestPoint(point);
@@ -3575,8 +3586,7 @@ async function initializeDesktop() {
     if (!canTeleport() || !stillAllowed()) return false;
     const dock = target && nearestAvatarDock(native, target, nativeRadius);
     const contact = dock && windowDock(target, dock);
-    if (dock && visibleAvatarDock(dock, contact, display.workArea) && dockFitsAt(dock, contact))
-      return perchOn(target, null, dock, grab, stillAllowed);
+    if (dock && dockFitsHere(dock, contact)) return perchOn(target, null, dock, grab, stillAllowed);
     return screenDock ? perchAtEdge() : false;
   }
 
@@ -3591,6 +3601,7 @@ async function initializeDesktop() {
         : avatarDockFrame(dockFrames, perch?.dock ?? defaultSeat);
     if (
       frame?.id !== 'pose-sleep' &&
+      !frame?.mirror &&
       musicAnimationReady(musicListening.snapshot()) &&
       !avatarSleeping()
     ) {
