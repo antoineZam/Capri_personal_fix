@@ -36,6 +36,19 @@ move never stalls. Process identity is checked only for the window actually
 chosen. Observing a window makes it the favourite, not the only destination.
 Recent decisions appear in **Settings → Developer → For developers**.
 
+Once seated, Capri follows her window as it moves. If the pose no longer fits
+(for example after snapping the window to the top of the screen), she moves to
+the nearest dock of the same window that does, such as a corner or a side, and
+leaves only when none fits. With app windows allowed, the follower also notices
+windows that come in front of her: she slides to the nearest open part of the
+edge, or hides and leaves after about two seconds if it stays covered. When the
+window is closed, minimized or maximized, the next spot is planned like any
+other move, so she lands on the taskbar or another window rather than in a
+screen corner. With app windows not allowed, these cases keep the previous
+free landing. If the native window follower cannot run, the perch keeps
+following by checking its window every 1.8 seconds and the follower is
+restarted up to three times.
+
 Roaming pauses while Settings is open, while you type, speak, drag or interact
 with Capri, during replies and voice playback, during computer control, while
 Capri sleeps, in Focus mode, and when her host window is minimized. A short quiet
