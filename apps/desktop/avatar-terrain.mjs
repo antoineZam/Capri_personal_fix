@@ -16,7 +16,11 @@ export const TERRAIN_TEMPLATES = Object.freeze([
   { id: 'corner-left', dock: { kind: 'corner', edge: 'top', side: 'left' }, range: [0, 0] },
   { id: 'corner-right', dock: { kind: 'corner', edge: 'top', side: 'right' }, range: [1, 1] },
 ]);
-const FLOOR = { id: 'floor', dock: { kind: 'floor', edge: 'bottom' }, range: [0.04, 0.96] };
+export const FLOOR_TEMPLATE = Object.freeze({
+  id: 'floor',
+  dock: { kind: 'floor', edge: 'bottom' },
+  range: [0.04, 0.96],
+});
 
 /** Closed pieces of [start, end] outside the open cuts; a single point survives unless cut through. */
 export function subtractIntervals([start, end], cuts) {
@@ -70,16 +74,17 @@ export function edgeSpans(rect, { dock, range }, extents, area, occluders, slack
 }
 
 /**
- * windows: front to back [{ windowId, rect, perch, foreground }]; areas: [{ id, rect, poses }]
- * where poses maps a template id to its poseExtents() or null. Windows in front hide the
- * edges behind them; the floor is only cut by the given occluders (the companion window).
+ * windows: front to back [{ windowId, rect, perch, foreground }]; areas: [{ id, rect, poses,
+ * slack }] where poses maps a template id to its poseExtents() or null, and slack is the fit
+ * tolerance. Windows in front hide the edges behind them; the floor is only cut by the given
+ * occluders (the companion window).
  */
-export function buildTerrain(windows, areas, { occluders = [], floors = true, slack = 0 } = {}) {
+export function buildTerrain(windows, areas, { occluders = [], floors = true } = {}) {
   const surfaces = [];
   const add = (template, rect, owner, area, blockers) => {
     const extents = area.poses[template.id];
     if (!extents) return;
-    for (const [from, to] of edgeSpans(rect, template, extents, area.rect, blockers, slack))
+    for (const [from, to] of edgeSpans(rect, template, extents, area.rect, blockers, area.slack))
       surfaces.push({ dock: template.dock, ...owner, areaId: area.id, rect, from, to });
   };
   windows.forEach(({ windowId, rect, perch, foreground }, index) => {
@@ -91,7 +96,7 @@ export function buildTerrain(windows, areas, { occluders = [], floors = true, sl
   });
   if (floors)
     for (const area of areas)
-      add(FLOOR, area.rect, { windowId: null, foreground: false }, area, occluders);
+      add(FLOOR_TEMPLATE, area.rect, { windowId: null, foreground: false }, area, occluders);
   return surfaces;
 }
 
@@ -101,17 +106,24 @@ export function surfaceDock({ dock, rect }, position) {
   return { ...dock, fraction: (position - rect[along.pos]) / rect[along.size] };
 }
 
+/** A native window id with a safe-integer, non-empty frame. */
+export function validWindowRect(entry) {
+  return (
+    typeof entry?.windowId === 'string' &&
+    /^\d{1,20}$/.test(entry.windowId) &&
+    [entry.x, entry.y, entry.width, entry.height].every(Number.isSafeInteger) &&
+    entry.width > 0 &&
+    entry.height > 0
+  );
+}
+
 /** Validated native avatar_surfaces windows; anything malformed is dropped, extra keys too. */
 export function windowSurfaces(result) {
   if (result?.ok !== true || !Array.isArray(result.windows)) return null;
   return result.windows
     .filter(
       (entry) =>
-        typeof entry?.windowId === 'string' &&
-        /^\d{1,20}$/.test(entry.windowId) &&
-        [entry.x, entry.y, entry.width, entry.height].every(Number.isSafeInteger) &&
-        entry.width > 0 &&
-        entry.height > 0 &&
+        validWindowRect(entry) &&
         typeof entry.perch === 'boolean' &&
         typeof entry.foreground === 'boolean',
     )

@@ -37,6 +37,14 @@ import { ChatGPTPlanAuth, CHATGPT_RESOURCE } from './chatgpt-plan-auth.mjs';
 import { chatGPTCompletion } from './chatgpt-plan-completions.mjs';
 import { DesktopAiDiscovery } from './desktop-ai-discovery.mjs';
 import { AvatarRoaming } from './avatar-roaming.mjs';
+import { planRoam, roamCandidates } from './avatar-roam-planner.mjs';
+import {
+  FLOOR_TEMPLATE,
+  TERRAIN_TEMPLATES,
+  buildTerrain,
+  validWindowRect,
+  windowSurfaces,
+} from './avatar-terrain.mjs';
 import { LocalModelLoad } from './local-model-load.mjs';
 import { openLocalModelFolder } from './local-model-folder.mjs';
 import { isLemonadeNpuEndpoint, isLocalApiEndpoint } from './renderer/inference-endpoint.mjs';
@@ -316,7 +324,7 @@ import { ScreenClipFrames } from './screen-clip-frames.mjs';
 import { captureActiveDisplay } from './native-screenshot.mjs';
 import { ControlOverlay } from './main/control-overlay.mjs';
 import { ControlWindowLayer } from './main/control-window-layer.mjs';
-import { AvatarDetach, avatarDragCanTeleport } from './main/avatar-detach.mjs';
+import { AvatarDetach, avatarDragCanTeleport, dockTolerance } from './main/avatar-detach.mjs';
 import { DesktopTeleportMenu } from './main/desktop-teleport-menu.mjs';
 import {
   settingsAvatarWindowId,
@@ -336,6 +344,7 @@ import {
   nearestAvatarDock,
   nearestDisplayAvatarDock,
   pointInReservedDesktop,
+  poseExtents,
   visibleAvatarDock,
 } from './avatar-docking.mjs';
 import {
@@ -3554,10 +3563,9 @@ async function initializeDesktop() {
       allowedWindowId: settingsId,
     });
     if (
-      !/^\d+$/.test(target?.windowId ?? '') ||
+      !validWindowRect(target) ||
       !/^\d+$/.test(target.processId ?? '') ||
       !/^\d+$/.test(target.startedAtTicks ?? '') ||
-      ![target.x, target.y, target.width, target.height].every(Number.isSafeInteger) ||
       (target.processId === String(process.pid) &&
         (target.windowId !== settingsId || settingsHost?.window !== settingsView))
     )
@@ -3858,49 +3866,151 @@ async function initializeDesktop() {
     );
   }
 
+  let surfaceRequest;
+  /** Window frames front to back, geometry only; concurrent callers share one native call. */
+  function desktopSurfaces() {
+    if (process.platform !== 'win32') return Promise.resolve(null);
+    return (surfaceRequest ??= callApplicationBridge(root, {
+      action: 'avatar_surfaces',
+      ignoreProcessId: String(process.pid),
+    })
+      .then(windowSurfaces, () => null)
+      .finally(() => {
+        surfaceRequest = undefined;
+      }));
+  }
+
+  /** One display's work area in physical pixels, with the box of every dock pose on it. */
+  function terrainArea(display) {
+    const ratio = display.scaleFactor || 1;
+    const scale = avatarDetach.fitScale(display.workArea);
+    const { width, height } = catalog.canvas;
+    const poses = {};
+    for (const { id, dock } of [...TERRAIN_TEMPLATES, FLOOR_TEMPLATE]) {
+      const frame = dockArrivalFrame(dock);
+      poses[id] = frame?.visibleBounds
+        ? poseExtents(
+            { x: frame.anchor.x / width, y: frame.anchor.y / height },
+            frame.visibleBounds,
+            catalog.canvas,
+            scale * ratio,
+          )
+        : null;
+    }
+    const rect = screen.dipToScreenRect(null, display.workArea);
+    return { id: display.id, rect, poses, slack: dockTolerance(scale) * ratio };
+  }
+
+  /** The observed window's display, an approved observed display, or the current one. */
+  function roamDisplay(watching, windows, preferWindowId) {
+    const preferred = windows?.find(({ windowId }) => windowId === preferWindowId);
+    if (preferred) {
+      const { x, y, width, height } = preferred.rect;
+      const center = { x: Math.round(x + width / 2), y: Math.round(y + height / 2) };
+      return screen.getDisplayNearestPoint(screen.screenToDipPoint(center));
+    }
+    const bounds = window.getBounds();
+    const current = screen.getDisplayNearestPoint(
+      avatarDetach.desktopPoint ?? {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y + bounds.height / 2,
+      },
+    );
+    if (!watching || preferWindowId) return current;
+    const displays = screen.getAllDisplays();
+    const approved = displays.filter(
+      ({ id }) =>
+        (watching.allMonitors || watching.displayId || displays.length === 1) &&
+        captureIncludesDisplay(watching, id),
+    );
+    return approved[Math.floor(Math.random() * approved.length)];
+  }
+
+  async function roamTo(choice, { lease, allowed, fromPerch }) {
+    if (choice.kind === 'free') return hopFree(choice.point, { allowed, fromPerch });
+    if (!choice.windowId) return perchOn(null, null, choice.dock, undefined, allowed);
+    // Process identity is only checked for the window actually chosen.
+    const target = await avatarWindow({ windowId: choice.windowId }).catch(() => null);
+    return Boolean(target && allowed()) && perchOn(target, lease, choice.dock, undefined, allowed);
+  }
+
+  /** Plans one move over the display's open surfaces and tries the best few in order. */
+  async function moveAvatar({ display, windows, lease = null, preferWindowId, allowed, reason }) {
+    const started = performance.now();
+    const fromPerch = Boolean(perch);
+    const companion = window.isVisible()
+      ? [
+          screen.dipToScreenRect(
+            window,
+            visibleWindowBounds(window.getContentBounds(), windowFootprint),
+          ),
+        ]
+      : [];
+    const surfaces =
+      windows && buildTerrain(windows, [terrainArea(display)], { occluders: companion });
+    const candidates = roamCandidates(surfaces, Math.random)
+      .map((candidate) =>
+        candidate.windowId
+          ? { ...candidate, point: windowDock(candidate.rect, candidate.dock) }
+          : {
+              ...candidate,
+              dock: { ...candidate.dock, bounds: display.workArea, display },
+              point: avatarDockPoint(display.workArea, candidate.dock),
+            },
+      )
+      .filter(({ point }) => screen.getDisplayNearestPoint(point).id === display.id);
+    const free = freeRoamPoint(display, fromPerch);
+    if (free) candidates.push({ kind: 'free', point: free });
+    const { order, unfit } = planRoam({
+      candidates,
+      from: avatarDetach.desktopPoint,
+      diagonal: Math.hypot(display.workArea.width, display.workArea.height),
+      recent: avatarRoaming.recent(),
+      preferWindowId,
+      fits: (candidate) =>
+        candidate.kind === 'free' || dockFitsHere(candidate.dock, candidate.point, display),
+    });
+    let failed = false;
+    for (const choice of order) {
+      if (!allowed()) break;
+      const moved = await roamTo(choice, { lease, allowed, fromPerch }).catch(() => false);
+      avatarRoaming.record({
+        reason,
+        kind: choice.kind,
+        ...(choice.windowId && { windowId: choice.windowId }),
+        weight: Math.round(choice.weight * 100) / 100,
+        unfit,
+        ms: Math.round(performance.now() - started),
+        result: !moved ? 'perch failed' : failed ? 'fallback' : 'ok',
+      });
+      if (moved) return choice;
+      failed = true;
+    }
+    return null;
+  }
+
   async function roamDesktopAvatar(watching, revision) {
     const allowed = () =>
       avatarRoaming.current(liveCompanionSettings(), revision) &&
       avatarRoamingAllowed() &&
       (!watching || capturePolicy.capture === watching);
-    const randomSeat = { ...defaultSeat, fraction: 0.2 + Math.random() * 0.6 };
-    if (watching?.nativeId.startsWith('window:')) {
-      const target = await avatarWindow({ windowId: watching.nativeId.split(':')[1] });
-      if (allowed()) await perchOn(target, watching, randomSeat, undefined, allowed);
-      return;
-    }
-    const displays = screen.getAllDisplays();
-    const approved = watching
-      ? displays.filter(
-          ({ id }) =>
-            (watching.allMonitors || watching.displayId || displays.length === 1) &&
-            captureIncludesDisplay(watching, id),
-        )
-      : [
-          screen.getDisplayNearestPoint(
-            avatarDetach.desktopPoint ?? {
-              x: window.getBounds().x + window.getBounds().width / 2,
-              y: window.getBounds().y + window.getBounds().height / 2,
-            },
-          ),
-        ];
-    const display = approved[Math.floor(Math.random() * approved.length)];
-    if (!display || !allowed()) return;
     // Window perch reads window positions only; it never captures or inspects the screen.
-    if ((liveCompanionSettings().avatarRoamWindows || watching) && Math.random() < 0.5) {
-      const target = await avatarWindow();
-      if (!allowed()) return;
-      const seat = target && windowDock(target, randomSeat);
-      if (
-        seat &&
-        screen.getDisplayNearestPoint(seat).id === display.id &&
-        (await perchOn(target, watching, randomSeat, undefined, allowed))
-      )
-        return;
-    }
-    const point = freeRoamPoint(display);
-    if (!point || !allowed()) return;
-    await hopFree(point, { allowed });
+    const useWindows = liveCompanionSettings().avatarRoamWindows || Boolean(watching);
+    const preferWindowId = watching?.nativeId.startsWith('window:')
+      ? watching.nativeId.split(':')[1]
+      : undefined;
+    const windows = useWindows ? ((await desktopSurfaces()) ?? []) : null;
+    if (!allowed()) return null;
+    const display = roamDisplay(watching, windows, preferWindowId);
+    if (!display) return null;
+    return moveAvatar({
+      display,
+      windows,
+      lease: watching,
+      preferWindowId,
+      allowed,
+      reason: 'roam',
+    });
   }
 
   async function updateDesktopAvatar() {

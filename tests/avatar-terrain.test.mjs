@@ -107,7 +107,7 @@ test('a slack lets poses that wrap a few pixels past the work area still fit', (
   const docked = window('1', { x: 0, y: 127, width: 960, height: 900 });
   const tight = { ...main, rect: { ...main.rect, y: 1 } };
   assert.deepEqual(seats(buildTerrain([docked], [tight]), '1'), []);
-  assert.equal(seats(buildTerrain([docked], [tight], { slack: 2 }), '1').length, 1);
+  assert.equal(seats(buildTerrain([docked], [{ ...tight, slack: 2 }]), '1').length, 1);
 });
 
 test('surface docks carry the fraction of their edge', () => {
