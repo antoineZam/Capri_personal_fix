@@ -335,7 +335,11 @@ async function prepare(message) {
     !Number.isInteger(seed) ||
     !validAnchor(anchor) ||
     !spriteAddress.test(message.spriteUrl) ||
-    (arrival && (!validAnchor(arrival.anchor) || !spriteAddress.test(arrival.spriteUrl)))
+    ![undefined, true, false].includes(message.mirror) ||
+    (arrival &&
+      (!validAnchor(arrival.anchor) ||
+        !spriteAddress.test(arrival.spriteUrl) ||
+        ![undefined, true, false].includes(arrival.mirror)))
   )
     return false;
   if (!setPresentation(message.presentation ?? 'character')) return false;
@@ -466,28 +470,43 @@ function settlePlacement(revision) {
   return parkedState();
 }
 
-function showPose(url, dock) {
+function poseState(url, dock, mirror) {
   const seated = perchSprite.test(url);
+  const name = seated ? 'seat' : (dock ?? '');
+  const frameId = frameIdFor(url);
+  const pose = avatarPoseLandmarks(frameId);
+  const grip = pose ? null : avatarGripPose(name);
+  return { seated, name, frameId, pose, grip, mirrored: grip ? grip.mirror === true : mirror };
+}
+
+function poseChangedTo({ name, frameId, pose, mirrored }) {
+  return (
+    parked.dataset.dock !== name ||
+    parked.dataset.poseFrame !== (pose ? frameId : '') ||
+    stage.hasAttribute('data-mirror') !== mirrored
+  );
+}
+
+function showPose(url, dock, mirror) {
+  const state = poseState(url, dock, mirror === true);
+  const { seated, name, frameId, pose } = state;
   if (seated && seatShins.dataset.source !== url) {
     seatShins.dataset.source = url;
     seatShins.style.backgroundImage = `url(${JSON.stringify(url)})`;
   }
-  const name = seated ? 'seat' : (dock ?? '');
-  const frameId = frameIdFor(url);
-  const pose = avatarPoseLandmarks(frameId);
-  if (parked.dataset.dock === name && parked.dataset.poseFrame === (pose ? frameId : '')) return;
+  if (!poseChangedTo(state)) return;
   parked.dataset.dock = name;
   parked.dataset.poseFrame = pose ? frameId : '';
   parked.toggleAttribute('data-legacy-seat', seated);
   lastSwing = undefined;
   rasterPose = pose;
-  gripPose = pose ? null : avatarGripPose(name);
+  gripPose = state.grip;
   movingLimbs = [];
   poseMotion.replaceChildren();
   gripBehind.replaceChildren();
   gripFront.replaceChildren();
   parked.toggleAttribute('data-grip', Boolean(gripPose));
-  stage.toggleAttribute('data-mirror', gripPose?.mirror === true);
+  stage.toggleAttribute('data-mirror', state.mirrored);
   if (gripPose) {
     const { head, layers } = gripPose;
     portrait.style.transform = `translate(${(head.x / 1254) * 100}%, ${(head.y / 1254) * 100}%) scale(${head.scale})`;
@@ -620,7 +639,7 @@ function parkedState() {
   return { ...replyState(), reducedMotion: motionPreference.matches };
 }
 
-async function park({ point, anchor, url, dock } = {}) {
+async function park({ point, anchor, url, dock, mirror } = {}) {
   finishArrival();
   if (flight || !validPoint(point) || !validAnchor(anchor) || !spriteAddress.test(url))
     return false;
@@ -629,7 +648,7 @@ async function park({ point, anchor, url, dock } = {}) {
   parkedPoint = point;
   placeParked(point, anchor);
   parkedImage.src = image.src;
-  showPose(image.src, dock);
+  showPose(image.src, dock, mirror);
   parked.hidden = false;
   animatePose();
   scheduleBlink();
@@ -644,6 +663,7 @@ async function setFrame(value) {
     anchor = parkedAnchor,
     point,
     dock,
+    mirror,
   } = typeof value === 'string' ? { url: value } : (value ?? {});
   if (
     parked.hidden ||
@@ -658,10 +678,7 @@ async function setFrame(value) {
   try {
     const image = await loadFrame(url);
     if (request !== frameRequest) return false;
-    const frameId = frameIdFor(url);
-    const poseChanged =
-      parked.dataset.dock !== (perchSprite.test(url) ? 'seat' : (dock ?? '')) ||
-      parked.dataset.poseFrame !== (avatarPoseLandmarks(frameId) ? frameId : '');
+    const poseChanged = poseChangedTo(poseState(url, dock, mirror === true));
     const moved =
       point &&
       (point.x !== parkedPoint.x || point.y !== parkedPoint.y || point.scale !== parkedPoint.scale);
@@ -672,7 +689,7 @@ async function setFrame(value) {
       parkedPoint = point ?? parkedPoint;
       placeParked(parkedPoint, anchor);
     }
-    showPose(image.src, dock);
+    showPose(image.src, dock, mirror);
     if (poseChanged) {
       animatePose();
       scheduleBlink();
@@ -712,7 +729,8 @@ function positionHud() {
   const focusX = rasterPose?.face[0] ?? head.x + (perched ? 649 : 642) * head.scale;
   const focusY = rasterPose?.face[1] ?? head.y + (perched ? 488 : 394) * head.scale;
   const crown = rasterPose?.crown ?? head.y + (perched ? 195 : 112) * head.scale;
-  const faceX = left + ((gripPose?.mirror ? 1254 - focusX : focusX) / 1254) * scale;
+  const faceX =
+    left + ((stage.hasAttribute('data-mirror') ? 1254 - focusX : focusX) / 1254) * scale;
   const faceY = top + (focusY / 1254) * scale;
   const crownY = top + (crown / 1254) * scale;
   const hasReply = Boolean(replySnapshot?.text.trim());
@@ -1034,6 +1052,10 @@ function paint() {
         context.rect(x, y, width, height);
         context.clip();
       }
+      if (arriving ? arrival.mirror : run.mirror) {
+        context.translate(2 * left + scale, 0);
+        context.scale(-1, 1);
+      }
       context.drawImage(image.image, left, top, scale, scale);
       if (tint > 0) {
         context.globalAlpha *= tint;
@@ -1060,7 +1082,7 @@ function complete(run = flight) {
     parkedPoint = to;
     placeParked(to, arrival?.anchor ?? anchor);
     parkedImage.src = (arrival ? arrivalSprite : sprite).image.src;
-    showPose(parkedImage.src, arrival?.dock);
+    showPose(parkedImage.src, arrival?.dock, arrival ? arrival.mirror : run.mirror);
     parked.hidden = false;
     redrawMouth();
     ensureMusicAnimation();
