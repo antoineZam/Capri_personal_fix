@@ -29,3 +29,16 @@ export function avatarPoseSwing(time, { amplitude, phase }) {
   const frame = Math.floor(time / (1000 / 12)) % 48;
   return Math.sin((frame * 2 * Math.PI) / 48 + phase) * amplitude;
 }
+
+/** Eased point between two parked placements with a light seated bob; exact at both ends. */
+export function avatarGlidePoint(from, to, progress) {
+  if (!(progress < 1)) return to;
+  const t = Math.max(0, progress);
+  const eased = t * t * (3 - 2 * t);
+  const bob = Math.sin(t * Math.PI * 4) ** 2 * to.scale * 0.01;
+  const x = from.x + (to.x - from.x) * eased;
+  const y = from.y + (to.y - from.y) * eased - bob;
+  // A glide keeps its pose, so the focus moves with the contact point.
+  const focus = to.focus && { x: to.focus.x + x - to.x, y: to.focus.y + y - to.y };
+  return { ...to, x, y, ...(focus && { focus }) };
+}

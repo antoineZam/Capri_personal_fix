@@ -11,6 +11,7 @@ import {
 } from '../apps/desktop/avatar-docking.mjs';
 import { dockFits } from '../apps/desktop/main/avatar-detach.mjs';
 import { spritePressKind } from '../apps/desktop/geometry.mjs';
+import { avatarGlidePoint } from '../apps/desktop/avatar-pose-motion.mjs';
 
 const canvas = { width: 1254, height: 1254 };
 const seat = { x: 599 / 1254, y: 773 / 1254 };
@@ -96,4 +97,20 @@ test('mirrored poses are hit-tested in the orientation they were drawn in', () =
   assert.equal(spritePressKind(right, rect, mask, false), null);
   assert.equal(spritePressKind(right, rect, mask, false, { mirror: true }), 'body');
   assert.equal(spritePressKind({ x: 20, y: 50 }, rect, mask, false, { mirror: true }), null);
+});
+
+test('glides ease between exact ends and carry the pose focus along', () => {
+  const from = { x: 100, y: 300, scale: 200, focus: { x: 110, y: 200 } };
+  const to = { x: 400, y: 300, scale: 200, focus: { x: 410, y: 200 } };
+  assert.equal(avatarGlidePoint(from, to, 1), to);
+  assert.equal(avatarGlidePoint(from, to, 2), to);
+  assert.deepEqual(avatarGlidePoint(from, to, 0), { ...to, x: 100, y: 300, focus: from.focus });
+  let previous = from.x;
+  for (let step = 1; step < 20; step++) {
+    const point = avatarGlidePoint(from, to, step / 20);
+    assert.ok(point.x > previous && point.x < to.x);
+    assert.ok(point.y <= 300 && point.y >= 300 - 2, 'only a light bob');
+    assert.ok(Math.abs(point.focus.x - point.x - 10) < 1e-9);
+    previous = point.x;
+  }
 });

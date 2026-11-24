@@ -79,7 +79,7 @@ function fixture({
           return Promise.resolve();
         }
         const parkedCall =
-          /^globalThis\.capriAvatarDetach\.(park|setFrame|setTether|setReply|toggleReply|stepReply|setReplyNear|setMouth|setStatus|waitForMotionChange|finishArrival|whenSettled)\((.*)\)$/.exec(
+          /^globalThis\.capriAvatarDetach\.(park|setFrame|glide|setTether|setReply|toggleReply|stepReply|setReplyNear|setMouth|setStatus|waitForMotionChange|finishArrival|whenSettled)\((.*)\)$/.exec(
             source,
           );
         if (parkedCall)
@@ -960,6 +960,92 @@ test('a perch followed across a small display regains the detached scale', async
     true,
   );
   assert.equal(controller.session.point.scale, scale);
+  controller.reset();
+});
+
+test('a same-pose move glides with one renderer command', async () => {
+  const calls = [];
+  let reduced = false;
+  const { controller } = fixture({
+    parked: (method, value) => {
+      if (method !== 'waitForMotionChange') calls.push([method, value]);
+      return { reducedMotion: reduced };
+    },
+  });
+  const seated = {
+    anchor: { name: 'seat', x: 600, y: 790 },
+    visibleBounds: { x: 240, y: 195, width: 850, height: 955 },
+    url: 'capri://desktop/sprites/desktop-perch-neutral.png',
+  };
+  const seat = (x) => ({ x: area.x + x, y: area.y + 400 });
+  await controller.leave(geometry, sprite, canvas);
+  assert.equal(await controller.updateFrame(seated, canvas, null, seat(600)), true);
+  calls.length = 0;
+  const before = controller.placementRevision;
+  assert.equal(await controller.updateFrame(seated, canvas, null, seat(900), { glide: 400 }), true);
+  assert.deepEqual(
+    calls.map(([method]) => method),
+    ['glide'],
+  );
+  const [, command] = calls[0];
+  assert.equal(command.revision, before + 2, 'the glide outranks the cancel sent before it');
+  assert.equal(command.duration, 400);
+  assert.deepEqual(controller.session.point, command.to);
+  assert.equal(controller.glideMotion, null);
+
+  calls.length = 0;
+  const standing = { ...seated, anchor: { ...seated.anchor, name: 'ground' } };
+  await controller.updateFrame(standing, canvas, null, seat(700), { glide: 400 });
+  assert.deepEqual(
+    calls.map(([method]) => method),
+    ['setFrame'],
+  );
+  reduced = true;
+  await controller.updateFrame(seated, canvas, null, seat(600));
+  calls.length = 0;
+  await controller.updateFrame(seated, canvas, null, seat(900), { glide: 400 });
+  assert.equal(
+    calls.some(([method]) => method === 'glide'),
+    false,
+    'reduced motion places instantly',
+  );
+  controller.reset();
+});
+
+test('a press or a new placement stops a glide where it is', async () => {
+  const glides = [];
+  const { controller } = fixture({
+    parked: (method) =>
+      method === 'glide'
+        ? new Promise((resolve) => glides.push(resolve))
+        : { reducedMotion: false },
+  });
+  const seated = {
+    anchor: { name: 'seat', x: 600, y: 790 },
+    visibleBounds: { x: 240, y: 195, width: 850, height: 955 },
+    url: 'capri://desktop/sprites/desktop-perch-neutral.png',
+  };
+  const seat = (x) => ({ x: area.x + x, y: area.y + 400 });
+  await controller.leave(geometry, sprite, canvas);
+  await controller.updateFrame(seated, canvas, null, seat(600));
+  const from = controller.session.point;
+  const gliding = controller.updateFrame(seated, canvas, null, seat(900), { glide: 400 });
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  const to = controller.glideMotion.to;
+  controller.mouse({ type: 'mouseDown', button: 'left', x: 5, y: 5 });
+  const stopped = controller.session.point;
+  assert.ok(stopped.x > from.x && stopped.x < to.x, 'stopped between both ends');
+  glides[0]({ reducedMotion: false });
+  assert.equal(await gliding, false);
+  assert.equal(controller.session.point, stopped, 'a late renderer reply does not move it');
+
+  const next = controller.updateFrame(seated, canvas, null, seat(600), { glide: 400 });
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(controller.glideMotion);
+  controller.queuePlacement({ ...from });
+  assert.equal(controller.glideMotion, null);
+  glides[1]({ reducedMotion: false });
+  assert.equal(await next, false);
   controller.reset();
 });
 

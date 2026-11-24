@@ -22,7 +22,7 @@ import { musicAnimationReady } from './music-listening-settings.mjs';
 import { SIGNAL_STATES } from './presence-model.mjs';
 import { avatarGripPose, avatarGripSwing } from '../avatar-grip-rig.mjs';
 import { avatarSeatHinge, avatarSeatSwing } from '../avatar-body-regions.mjs';
-import { avatarPoseSegments, avatarPoseSwing } from '../avatar-pose-motion.mjs';
+import { avatarGlidePoint, avatarPoseSegments, avatarPoseSwing } from '../avatar-pose-motion.mjs';
 import {
   MusicAnimation,
   MusicNotesLayer,
@@ -109,6 +109,7 @@ let parkedPoint;
 let parkedAnchor;
 let frameRequest;
 let placementFrame = 0,
+  glideDone,
   placementPending,
   placementOrigin,
   placementRevision = 0,
@@ -395,6 +396,7 @@ function cancelPlacement(revision) {
     if (revision < placementRevision) return false;
     placementRevision = revision;
   }
+  endGlide();
   cancelAnimationFrame(placementFrame);
   placementFrame = 0;
   placementPending = undefined;
@@ -453,6 +455,7 @@ function setPlacement({ point, revision } = {}) {
     revision <= placementRevision
   )
     return false;
+  endGlide();
   placementRevision = revision;
   placementPending = { point, revision };
   if (!placementFrame)
@@ -461,6 +464,55 @@ function setPlacement({ point, revision } = {}) {
       flushPlacement();
     });
   return true;
+}
+
+function endGlide() {
+  if (!glideDone) return;
+  cancelAnimationFrame(placementFrame);
+  placementFrame = 0;
+  glideDone(false);
+  glideDone = undefined;
+}
+
+/** Moves the parked sprite to `to` over `duration` ms: one command, frames drawn here. */
+function glide({ to, duration, revision } = {}) {
+  finishArrival();
+  if (
+    parked.hidden ||
+    flight ||
+    frameRequest ||
+    !validPoint(to) ||
+    to.clip ||
+    !placementOrigin ||
+    placementOrigin.clip ||
+    to.scale !== placementOrigin.scale ||
+    !(duration >= 0 && duration <= 4000) ||
+    !Number.isSafeInteger(revision) ||
+    revision <= placementRevision
+  )
+    return false;
+  // Adopting the revision makes a stale cancel sent just before this glide harmless.
+  cancelPlacement(revision);
+  const from = parkedPoint;
+  const started = performance.now();
+  const instant = motionPreference.matches || document.body.dataset.presentation === 'dialogue';
+  return new Promise((resolve) => {
+    glideDone = resolve;
+    const step = (now) => {
+      const progress = instant || parked.hidden ? 1 : (now - started) / Math.max(1, duration);
+      placementPending = { point: avatarGlidePoint(from, to, progress) };
+      flushPlacement();
+      if (progress < 1) {
+        placementFrame = requestAnimationFrame(step);
+        return;
+      }
+      placementFrame = 0;
+      glideDone = undefined;
+      positionHud();
+      resolve(parkedState());
+    };
+    placementFrame = requestAnimationFrame(step);
+  });
 }
 
 function settlePlacement(revision) {
@@ -1234,6 +1286,7 @@ globalThis.capriAvatarDetach = Object.freeze({
   setPlacement,
   cancelPlacement,
   settlePlacement,
+  glide,
   setMouth,
   setReply,
   stepReply,

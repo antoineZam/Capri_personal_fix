@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { randomInt } from 'node:crypto';
 import { poseExtents } from '../avatar-docking.mjs';
+import { avatarGlidePoint } from '../avatar-pose-motion.mjs';
 import { COMPANION_DEFAULTS } from '../companion-settings.mjs';
 import { pointInRect, spriteDragHit, spritePressKind } from '../geometry.mjs';
 
@@ -549,7 +550,40 @@ export class AvatarDetach {
         }));
   }
 
+  /** Glides the parked sprite along an edge; main only estimates its position meanwhile. */
+  async glide(session, from, to, duration) {
+    this.cancelPlacement();
+    // Beats the revision of the cancel above, which reaches the renderer after the glide.
+    const revision = ++this.placementRevision;
+    const motion = (this.glideMotion = { session, from, to, at: Date.now(), duration });
+    try {
+      const done = await withTimeout(
+        this.updateParked('glide', { to, duration, revision }),
+        duration + this.timeoutMs,
+      ).catch(() => false);
+      if (this.glideMotion !== motion || this.session !== session || !done) return false;
+      session.point = to;
+      this.moveReplyGeometry(to);
+      return true;
+    } finally {
+      if (this.glideMotion === motion) this.glideMotion = null;
+    }
+  }
+
+  glidePoint({ from, to, at, duration }) {
+    return avatarGlidePoint(from, to, (Date.now() - at) / duration);
+  }
+
+  /** Freezes a running glide where the renderer is now; placement changes win over it. */
+  stopGlide() {
+    const motion = this.glideMotion;
+    if (!motion) return;
+    this.glideMotion = null;
+    if (this.session === motion.session) motion.session.point = this.glidePoint(motion);
+  }
+
   cancelPlacement() {
+    this.stopGlide();
     clearTimeout(this.placementSettleTimer);
     this.placementScheduled = this.placementSettleTimer = null;
     this.placementPending = this.placementInFlight = null;
@@ -562,6 +596,7 @@ export class AvatarDetach {
   }
 
   queuePlacement(point, previousPoint = point) {
+    this.stopGlide();
     const session = this.session,
       contents = this.overlay?.webContents;
     if (!this.available || !contents || this.overlay.isDestroyed()) return;
@@ -658,7 +693,7 @@ export class AvatarDetach {
       });
   }
 
-  async updateFrame(frame, canvas, mask, seat) {
+  async updateFrame(frame, canvas, mask, seat, { glide = 0 } = {}) {
     const session = this.session;
     if (!this.available || !frame.anchor) return false;
     const anchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
@@ -687,6 +722,8 @@ export class AvatarDetach {
       !nextPoint.clip &&
       !point.clip
     ) {
+      if (glide > 0 && session.reducedMotion !== true && this.getPresentation() !== 'dialogue')
+        return this.glide(session, point, nextPoint, glide);
       session.point = nextPoint;
       this.queuePlacement(nextPoint, point);
       return true;
@@ -719,11 +756,11 @@ export class AvatarDetach {
     }
   }
 
-  async followFrame(frame, canvas, mask, seat, display, restoring = false) {
+  async followFrame(frame, canvas, mask, seat, display, restoring = false, options) {
     const session = this.session;
     if (!this.available || !frame?.anchor || !seat || !display) return false;
     if (display.id === session.displayId) {
-      const result = await this.updateFrame(frame, canvas, mask, seat);
+      const result = await this.updateFrame(frame, canvas, mask, seat, options);
       if (
         result &&
         this.session === session &&
@@ -947,6 +984,8 @@ export class AvatarDetach {
     }
     if (mouse.button !== 'left') return;
     if (mouse.type === 'mouseDown') {
+      // A press stops a glide where it is, in main and in the renderer.
+      if (this.glideMotion) this.cancelPlacement();
       this.press = null;
       const action = this.replyTarget(mouse);
       this.replyPress = action ? { action, turnId: this.reply?.turnId } : null;
@@ -1244,6 +1283,11 @@ export class AvatarDetach {
     ) {
       this.stopPointer();
       return;
+    }
+    if (this.glideMotion) {
+      // Hit tests, the HUD and the composer follow the glide without any IPC.
+      this.session.point = this.glidePoint(this.glideMotion);
+      this.moveReplyGeometry(this.session.point);
     }
     const { x, y } = this.screen.getCursorScreenPoint();
     const { area } = this.session;
