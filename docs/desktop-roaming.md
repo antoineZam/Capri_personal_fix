@@ -66,10 +66,34 @@ returning home restart the waiting period. Turning roaming off preserves manual
 dragging and teleport controls, including following a window she is perched on.
 
 Scheduling shares the existing desktop supervision tick and adds no timer or
-background model loading. Verification covers upgrade defaults, saved settings,
-interval changes, pauses, manual cooldowns and repeated automatic teleports:
+background model loading. With roaming off and Capri at home, the tick does no
+roaming work at all. A move with app windows allowed costs one window list and
+one identity check for the chosen window; following a perch costs one fit check
+per window update.
+
+## Verification
+
+Unit tests cover upgrade defaults, saved settings, interval and dwell rules, the
+decision log, the window list (with real windows), open edges, corners and
+floors, the planner's weights, preference and streak rule, mirrored poses, glides,
+short hops, cover reporting by the native follower and the helper status:
 
 ```text
-node --test tests/avatar-roaming.test.mjs tests/desktop-avatar-commands.test.mjs
+node --test tests/avatar-roaming.test.mjs tests/desktop-avatar-commands.test.mjs tests/desktop-avatar-detach.test.mjs tests/avatar-docking.test.mjs tests/avatar-terrain.test.mjs tests/avatar-roam-planner.test.mjs tests/avatar-surfaces.test.mjs tests/desktop-teleport-watch.test.mjs tests/developer-diagnostics.test.mjs
+node tools/verify/verify-avatar-surfaces.mjs
 node tools/verify/verify-avatar-roaming.mjs
 ```
+
+`verify-avatar-surfaces` times the window list on the real desktop (no Electron
+needed). `verify-avatar-roaming` drives the real settings with two external test
+windows and checks that roaming reaches a window edge or the taskbar without
+logging titles; it needs the Electron dependencies.
+
+The native follower does not run under `--verification`, so these remain manual
+checks in the running app: a window brought over a perch (slide, or leave within
+about two seconds), maximizing or minimizing the occupied window (taskbar or
+another window, never a screen corner), snapping it to the top half (corner,
+side or leave, never over the title bar), mixed DPI displays, a left or
+auto-hidden taskbar, reduced motion and the dialogue presentation (no glide or
+short hop), the window-observation lease, and turning **Let Capri sit on app
+windows** off (free hops only, as in Capri 1.1.2).
