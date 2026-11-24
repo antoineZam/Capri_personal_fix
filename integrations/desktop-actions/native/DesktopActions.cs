@@ -1159,6 +1159,21 @@ class DesktopActions {
     }
     [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr window,int attribute,out int value,int size);
     [DllImport("dwmapi.dll")] static extern int DwmGetWindowAttribute(IntPtr window,int attribute,out InputRect value,int size);
+    // Visible top-level window outside Capri and the shell, with its DWM frame. Zoomed windows pass: callers decide.
+    static bool AvatarFrame(IntPtr window,uint ignored,string allowed,out uint pid,out InputRect rect){
+        int cloaked;rect=new InputRect();GetWindowThreadProcessId(window,out pid);
+        if((pid==ignored&&window.ToInt64().ToString()!=allowed)||pid==0||!IsWindowVisible(window)||IsIconic(window)||
+            (DwmGetWindowAttribute(window,14,out cloaked,4)==0&&cloaked!=0))return false;
+        var name=new StringBuilder(128);GetClassName(window,name,name.Capacity);string windowClass=name.ToString();
+        if(windowClass=="Shell_TrayWnd"||windowClass=="Shell_SecondaryTrayWnd"||windowClass=="Progman"||windowClass=="WorkerW")return false;
+        return DwmGetWindowAttribute(window,9,out rect,Marshal.SizeOf(typeof(InputRect)))==0||GetWindowRect(window,out rect);
+    }
+    // A window big enough to sit on, with a caption (read here only, never returned).
+    static bool AvatarTarget(IntPtr window,InputRect rect){
+        if(rect.right-rect.left<160||rect.bottom-rect.top<100)return false;
+        string caption=WindowLabel(window);
+        return !String.IsNullOrWhiteSpace(caption)&&!caption.Equals("Program Manager",StringComparison.OrdinalIgnoreCase);
+    }
     static object AvatarWindow(Dictionary<string,object> q){
         string title=Text(q,"title"), requested=Text(q,"windowId"), expectedProcess=Text(q,"processId"), expectedStart=Text(q,"startedAtTicks"), allowed=Text(q,"allowedWindowId");
         if(title.Length>160||requested.Length>24||expectedProcess.Length>12||expectedStart.Length>24||
@@ -1174,16 +1189,9 @@ class DesktopActions {
         try{
             EnumWindows((window,unused)=>{
                 if(requested.Length>0&&window.ToInt64().ToString()!=requested)return true;
-                uint pid;GetWindowThreadProcessId(window,out pid);
-                int cloaked;InputRect rect;
+                uint pid;InputRect rect;
                 // A maximized window has no outer top edge on screen, and the perch follower drops it.
-                if((pid==ignored&&window.ToInt64().ToString()!=allowed)||pid==0||!IsWindowVisible(window)||IsIconic(window)||
-                    IsZoomed(window)||(DwmGetWindowAttribute(window,14,out cloaked,4)==0&&cloaked!=0))return true;
-                var name=new StringBuilder(128);GetClassName(window,name,name.Capacity);
-                string windowClass=name.ToString();
-                if(windowClass=="Shell_TrayWnd"||windowClass=="Shell_SecondaryTrayWnd"||windowClass=="Progman"||windowClass=="WorkerW")return true;
-                if(DwmGetWindowAttribute(window,9,out rect,Marshal.SizeOf(typeof(InputRect)))!=0&&!GetWindowRect(window,out rect))return true;
-                if(rect.right-rect.left<160||rect.bottom-rect.top<100)return true;
+                if(!AvatarFrame(window,ignored,allowed,out pid,out rect)||IsZoomed(window))return true;
                 int distance=Int32.MaxValue;
                 if(near){
                     int insetX=(rect.right-rect.left)/25,insetY=(rect.bottom-rect.top)/25;
@@ -1193,13 +1201,12 @@ class DesktopActions {
                         distance=Math.Min(distance,Math.Min(Math.Abs(nearX-rect.left),Math.Abs(nearX-rect.right)));
                     if(distance>radius||distance>=bestDistance)return true;
                 }
-                string caption=WindowLabel(window);
-                if(String.IsNullOrWhiteSpace(caption)||caption.Equals("Program Manager",StringComparison.OrdinalIgnoreCase))return true;
+                if(!AvatarTarget(window,rect))return true;
                 try{
                     using(var process=Process.GetProcessById((int)pid)){
                         string started=process.StartTime.ToUniversalTime().Ticks.ToString();
                         if((expectedProcess.Length>0&&pid.ToString()!=expectedProcess)||(expectedStart.Length>0&&started!=expectedStart))return true;
-                        if(title.Length>0&&caption.IndexOf(title,StringComparison.OrdinalIgnoreCase)<0&&process.ProcessName.IndexOf(title,StringComparison.OrdinalIgnoreCase)<0)return true;
+                        if(title.Length>0&&WindowLabel(window).IndexOf(title,StringComparison.OrdinalIgnoreCase)<0&&process.ProcessName.IndexOf(title,StringComparison.OrdinalIgnoreCase)<0)return true;
                         var result=D("ok",true,"windowId",window.ToInt64().ToString(),"processId",pid.ToString(),"startedAtTicks",started,"x",rect.left,"y",rect.top,"width",rect.right-rect.left,"height",rect.bottom-rect.top);
                         if(near){bestDistance=distance;first=result;return distance!=0;}
                         if(first==null)first=result;
