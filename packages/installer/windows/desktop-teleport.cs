@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
@@ -44,6 +45,12 @@ internal static class CapriDesktopTeleport {
     private static bool anchorUpdatePending;
     private static bool anchorDestroyed;
     private static readonly WinEvent AnchorEvent = ObserveAnchor;
+    // Covers are reported for windows above the anchor within this band (physical px);
+    // 0 keeps the original follow: no foreground hook and no z-order walk.
+    private static int anchorBand;
+    private static uint anchorIgnoredProcess;
+    private static IntPtr anchorForegroundHook;
+    private static string anchorCovers = "";
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Point {
@@ -73,6 +80,9 @@ internal static class CapriDesktopTeleport {
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr window, out Rect rect);
     [DllImport("user32.dll")] private static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attr, out Rect rect, int size);
+    [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr window, int attr, out int value, int size);
+    [DllImport("user32.dll")] private static extern IntPtr GetWindow(IntPtr window, uint command);
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")] private static extern int GetWindowExStyle(IntPtr window, int index);
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)] private static extern IntPtr GetModuleHandle(string name);
     [DllImport("user32.dll")] private static extern IntPtr SetWinEventHook(uint first, uint last, IntPtr module, WinEvent callback, uint process, uint thread, uint flags);
     [DllImport("user32.dll")] private static extern bool UnhookWinEvent(IntPtr hook);
@@ -226,7 +236,9 @@ internal static class CapriDesktopTeleport {
         // https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-unhookwinevent
         if (anchorObjectHook != IntPtr.Zero) UnhookWinEvent(anchorObjectHook);
         if (anchorStateHook != IntPtr.Zero) UnhookWinEvent(anchorStateHook);
-        anchorObjectHook = anchorStateHook = IntPtr.Zero;
+        if (anchorForegroundHook != IntPtr.Zero) UnhookWinEvent(anchorForegroundHook);
+        anchorObjectHook = anchorStateHook = anchorForegroundHook = IntPtr.Zero;
+        anchorCovers = "";
     }
 
     private static void CloseAnchor() {
@@ -240,15 +252,19 @@ internal static class CapriDesktopTeleport {
     }
 
     private static void ObserveAnchor(IntPtr hook, uint kind, IntPtr window, int objectId, int childId, uint thread, uint time) {
-        if (anchorId == 0 || window != anchorWindow ||
-            (hook != anchorObjectHook && hook != anchorStateHook)) return;
-        // OBJID_WINDOW / CHILDID_SELF only; never follow controls inside the app.
-        if (kind >= 0x8000 && (objectId != 0 || childId != 0)) return;
-        if (kind != 0x8001 && kind != 0x8002 && kind != 0x8003 &&
-            kind != 0x800A && kind != 0x800B && kind != 0x0016 && kind != 0x0017) return;
-        // A quick restore must not replace a minimize/hide with its final visible rect.
-        if (kind == 0x0016 || kind == 0x8003) { EndAnchor("hidden"); return; }
-        if (kind == 0x8001) anchorDestroyed = true;
+        // Any app coming to the front may cover the perch: re-read the anchor once.
+        bool front = hook != IntPtr.Zero && hook == anchorForegroundHook;
+        if (anchorId == 0 || (!front && (window != anchorWindow ||
+            (hook != anchorObjectHook && hook != anchorStateHook)))) return;
+        if (!front) {
+            // OBJID_WINDOW / CHILDID_SELF only; never follow controls inside the app.
+            if (kind >= 0x8000 && (objectId != 0 || childId != 0)) return;
+            if (kind != 0x8001 && kind != 0x8002 && kind != 0x8003 &&
+                kind != 0x800A && kind != 0x800B && kind != 0x0016 && kind != 0x0017) return;
+            // A quick restore must not replace a minimize/hide with its final visible rect.
+            if (kind == 0x0016 || kind == 0x8003) { EndAnchor("hidden"); return; }
+            if (kind == 0x8001) anchorDestroyed = true;
+        }
         if (anchorUpdatePending) return;
         anchorUpdatePending = true;
         int generation = anchorGeneration;
@@ -279,6 +295,8 @@ internal static class CapriDesktopTeleport {
         // The identity-checked timer remains a fallback for restricted targets.
         anchorObjectHook = SetWinEventHook(0x8001, 0x800B, IntPtr.Zero, AnchorEvent, process, thread, 0);
         anchorStateHook = SetWinEventHook(0x0016, 0x0017, IntPtr.Zero, AnchorEvent, process, thread, 0);
+        // EVENT_SYSTEM_FOREGROUND only fires on activation changes, and only while following.
+        if (anchorBand > 0) anchorForegroundHook = SetWinEventHook(0x0003, 0x0003, IntPtr.Zero, AnchorEvent, 0, 0, 0);
         PollAnchor();
         if (anchorId != 0 && anchorTimer != null) anchorTimer.Start();
     }
@@ -306,9 +324,40 @@ internal static class CapriDesktopTeleport {
                 bool dwmReady = DwmGetWindowAttribute(anchorWindow, 9, out dwm, Marshal.SizeOf(typeof(Rect))) == 0;
                 bool outerReady = (!dwmReady || !UsableAnchorRect(dwm)) && GetWindowRect(anchorWindow, out outer);
                 geometry = ChooseAnchorRect(dwmReady, dwm, outerReady, outer, out rect);
+                anchorCovers = anchorBand > 0 && geometry ? Covers(rect) : "";
             } finally { if (previous != IntPtr.Zero) SetThreadDpiAwarenessContext(previous); }
         }
         ApplyAnchorObservation(identity, visible, iconic, geometry, rect, Stopwatch.GetTimestamp() * 1000 / Stopwatch.Frequency);
+    }
+
+    // Frames of up to 8 visible windows above the anchor that reach into its band.
+    private static string Covers(Rect anchor) {
+        var covers = new List<string>();
+        IntPtr window = anchorWindow;
+        for (int step = 0; step < 1024 && covers.Count < 8; step++) {
+            window = GetWindow(window, 3); // GW_HWNDPREV: the next window above
+            if (window == IntPtr.Zero) break;
+            uint process;
+            int cloaked, style;
+            GetWindowThreadProcessId(window, out process);
+            if (process == anchorIgnoredProcess || !IsWindowVisible(window) || IsIconic(window)) continue;
+            style = GetWindowExStyle(window, -20);
+            // Tool palettes and click-through overlays never hide an edge to sit on.
+            if ((style & 0x80) != 0 || (style & 0x80020) == 0x80020) continue;
+            if (DwmGetWindowAttribute(window, 14, out cloaked, 4) == 0 && cloaked != 0) continue;
+            var name = new StringBuilder(32);
+            GetClassName(window, name, name.Capacity);
+            if (name.ToString() == "Shell_TrayWnd" || name.ToString() == "Shell_SecondaryTrayWnd") continue;
+            Rect dwm, outer = new Rect(), rect;
+            bool dwmReady = DwmGetWindowAttribute(window, 9, out dwm, Marshal.SizeOf(typeof(Rect))) == 0;
+            bool outerReady = (!dwmReady || !UsableAnchorRect(dwm)) && GetWindowRect(window, out outer);
+            if (!ChooseAnchorRect(dwmReady, dwm, outerReady, outer, out rect) ||
+                rect.Right <= anchor.Left - anchorBand || rect.Left >= anchor.Right + anchorBand ||
+                rect.Bottom <= anchor.Top - anchorBand || rect.Top >= anchor.Bottom + anchorBand) continue;
+            covers.Add(String.Format(CultureInfo.InvariantCulture, "{0},{1},{2},{3}",
+                rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top));
+        }
+        return String.Join(";", covers);
     }
 
     private static AnchorIdentity ProcessOpenFailure(int error) {
@@ -360,7 +409,8 @@ internal static class CapriDesktopTeleport {
         }
         anchorUnavailableAt = -1;
         if (!visible || iconic) { EndAnchor("hidden"); return; }
-        PublishAnchor(String.Format(CultureInfo.InvariantCulture, "visible {0} {1} {2} {3}", rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top));
+        PublishAnchor(String.Format(CultureInfo.InvariantCulture, "visible {0} {1} {2} {3}", rect.Left, rect.Top, rect.Right - rect.Left, rect.Bottom - rect.Top) +
+            (anchorCovers.Length > 0 ? " cover " + anchorCovers : ""));
     }
 
     private static void PublishAnchor(string state) {
@@ -378,12 +428,22 @@ internal static class CapriDesktopTeleport {
                 int id;
                 uint process;
                 long ticks;
-                if (command.Length == 5 && command[0] == "follow" && int.TryParse(command[1], out id) && long.TryParse(command[2], out handle) && uint.TryParse(command[3], out process) && long.TryParse(command[4], out ticks)) {
+                int band = 0;
+                uint ignore = 0;
+                // "follow id window process ticks [band ignoredProcess]"
+                if ((command.Length == 5 || (command.Length == 7 && int.TryParse(command[5], out band) && band >= 0 && band <= 4096 && uint.TryParse(command[6], out ignore))) &&
+                    command[0] == "follow" && int.TryParse(command[1], out id) && long.TryParse(command[2], out handle) && uint.TryParse(command[3], out process) && long.TryParse(command[4], out ticks)) {
                     int nextId = id;
                     IntPtr nextHandle = new IntPtr(handle);
                     uint nextProcess = process;
                     long nextTicks = ticks;
-                    lifetime.BeginInvoke((Action)(() => FollowWindow(nextId, nextHandle, nextProcess, nextTicks)));
+                    int nextBand = band;
+                    uint nextIgnore = ignore;
+                    lifetime.BeginInvoke((Action)(() => {
+                        anchorBand = nextBand;
+                        anchorIgnoredProcess = nextIgnore;
+                        FollowWindow(nextId, nextHandle, nextProcess, nextTicks);
+                    }));
                     continue;
                 }
                 if (command.Length != 2 || !long.TryParse(command[0], out handle) || !int.TryParse(command[1], out id)) continue;

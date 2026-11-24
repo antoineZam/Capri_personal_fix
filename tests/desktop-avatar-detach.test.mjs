@@ -1884,10 +1884,12 @@ test('desktop shell registration waits for native coordinates and removes only i
   child.stdout.write('release 1 55 55\n');
   assert.deepEqual(releases, [{ x: 12, y: 34 }]);
   const anchors = [];
-  const unwatch = menu.watchWindow(
-    { windowId: '526', processId: '11', startedAtTicks: '30401' },
-    (point) => anchors.push(point),
-  );
+  const sent = [];
+  const write = child.stdin.write.bind(child.stdin);
+  child.stdin.write = (data) => sent.push(data.trim()) && write(data);
+  const record = { windowId: '526', processId: '11', startedAtTicks: '30401' };
+  const unwatch = menu.watchWindow(record, (point) => anchors.push(point));
+  assert.equal(sent.at(-1), 'follow 2 526 11 30401');
   child.stdout.write(
     'anchor 1 visible 12 20 900 650\nanchor 2 visible -42 12 640 600\nanchor 2 hidden\n',
   );
@@ -1896,6 +1898,33 @@ test('desktop shell registration waits for native coordinates and removes only i
   assert.deepEqual(anchors, [
     { state: 'visible', x: -42, y: 12, width: 640, height: 600 },
     { state: 'hidden' },
+  ]);
+  anchors.length = 0;
+  const unwatchCovers = menu.watchWindow(record, (point) => anchors.push(point), 120);
+  assert.equal(sent.at(-1), `follow 3 526 11 30401 120 ${process.pid}`);
+  const item = '-5,0,300,200';
+  child.stdout.write(
+    [
+      `anchor 3 visible 10 20 900 650 cover ${item};40,-60,100,80`,
+      'anchor 3 visible 10 20 900 650 cover 1,2,3',
+      `anchor 3 visible 10 20 900 650 cover ${Array(9).fill(item).join(';')}`,
+      'anchor 3 visible 11 20 900 650',
+    ].join('\n') + '\n',
+  );
+  unwatchCovers();
+  assert.deepEqual(anchors, [
+    {
+      state: 'visible',
+      x: 10,
+      y: 20,
+      width: 900,
+      height: 650,
+      covers: [
+        { x: -5, y: 0, width: 300, height: 200 },
+        { x: 40, y: -60, width: 100, height: 80 },
+      ],
+    },
+    { state: 'visible', x: 11, y: 20, width: 900, height: 650 },
   ]);
   registryOwner = menu.owner;
   menu.hide();

@@ -169,6 +169,25 @@ class WatchFixture {
       Bind(window); Set("anchorStartedAt", Process.GetCurrentProcess().StartTime.ToUniversalTime().Ticks + 1); Call("PollAnchor");
       Assert(Take() == "anchor 41 closed", "Creation-time mismatch was not closed."); checks++;
 
+      Bind(window); Set("anchorBand", 200); Set("anchorIgnoredProcess", (uint)0);
+      SetWindowPos(window.Handle, IntPtr.Zero, -16000, -16000, 330, 180, 0x0014);
+      var cover = new Form { FormBorderStyle = FormBorderStyle.None, ShowInTaskbar = false, StartPosition = FormStartPosition.Manual, Bounds = new Rectangle(-15900, -16050, 200, 120), Text = "Cover fixture" };
+      cover.Show(); SetWindowPos(cover.Handle, IntPtr.Zero, -15900, -16050, 200, 120, 0x0010); Pump(60);
+      Call("PollAnchor"); string covered = Take();
+      Assert(covered.StartsWith("anchor 41 visible ") && covered.EndsWith(" cover -15900,-16050,200,120"), "A window over the perch band was not reported: " + covered); checks++;
+      SetWindowPos(cover.Handle, IntPtr.Zero, -12000, -16000, 200, 120, 0x0014); Pump(30); Call("PollAnchor");
+      string clear = Take();
+      Assert(clear.StartsWith("anchor 41 visible ") && !clear.Contains("cover"), "A window outside the band was reported: " + clear); checks++;
+      SetWindowPos(cover.Handle, IntPtr.Zero, -15900, -16050, 200, 120, 0x0014); Pump(30);
+      Set("anchorIgnoredProcess", (uint)Process.GetCurrentProcess().Id); Call("PollAnchor");
+      Assert(!Take().Contains("cover"), "Capri's own windows were reported as covers."); checks++;
+      Set("anchorLifetime", window);
+      Call("FollowWindow", 53, window.Handle, (uint)Process.GetCurrentProcess().Id, Process.GetCurrentProcess().StartTime.ToUniversalTime().Ticks);
+      Assert((IntPtr)Get("anchorForegroundHook") != IntPtr.Zero, "Cover reporting did not listen for foreground changes.");
+      Call("StopFollowing");
+      Assert((IntPtr)Get("anchorForegroundHook") == IntPtr.Zero, "The foreground hook outlived the follow."); checks++;
+      Set("anchorBand", 0); cover.Dispose(); Take();
+
       Bind(window); IntPtr destroyed = window.Handle; window.Dispose(); window = null; Call("PollAnchor");
       Assert(Take() == "anchor 41 closed" && (int)Get("anchorId") == 0, "Destroyed HWND was retained."); checks++;
       Console.SetOut(original);
@@ -196,7 +215,7 @@ class WatchFixture {
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.deepEqual(JSON.parse(result.stdout), {
       passed: true,
-      checks: 10,
+      checks: 14,
       ownedWindowsOnly: true,
       autoElevation: false,
       inputInjected: false,

@@ -54,6 +54,11 @@ export async function prepareDesktopTeleport(root) {
   return helper;
 }
 
+function rectFrom(item) {
+  const [x, y, width, height] = item.split(',').map(Number);
+  return { x, y, width, height };
+}
+
 /** Registers the shell verb only while its native coordinate listener is ready. */
 export class DesktopTeleportMenu {
   constructor(
@@ -106,12 +111,12 @@ export class DesktopTeleportMenu {
         if (release && watch?.id === Number(release[1]))
           watch.callback({ x: Number(release[2]), y: Number(release[3]) });
         const position =
-          /^anchor (\d+) (hidden|closed|unavailable|visible)(?: (-?\d{1,10}) (-?\d{1,10}) (\d{1,10}) (\d{1,10}))?$/.exec(
+          /^anchor (\d+) (hidden|closed|unavailable|visible)(?: (-?\d{1,10}) (-?\d{1,10}) (\d{1,10}) (\d{1,10})(?: cover ((?:-?\d{1,10},-?\d{1,10},\d{1,10},\d{1,10})(?:;-?\d{1,10},-?\d{1,10},\d{1,10},\d{1,10}){0,7}))?)?$/.exec(
             line,
           );
         const anchor = this.windowWatch;
         if (position && anchor?.id === Number(position[1])) {
-          const [, , state, x, y, width, height] = position;
+          const [, , state, x, y, width, height, cover] = position;
           if (state !== 'visible') anchor.callback({ state });
           else if (Number(width) > 0 && Number(height) > 0)
             anchor.callback({
@@ -120,6 +125,7 @@ export class DesktopTeleportMenu {
               y: Number(y),
               width: Number(width),
               height: Number(height),
+              ...(cover && { covers: cover.split(';').map(rectFrom) }),
             });
         }
       });
@@ -149,14 +155,16 @@ export class DesktopTeleportMenu {
     this.session.process.stdin.write(watch ? `${watch.windowHandle} ${watch.id}\n` : '0 0\n');
   }
 
-  watchWindow(record, callback) {
+  /** band > 0 (physical px) also reports the windows covering the perch. */
+  watchWindow(record, callback, band = 0) {
     if (
       !/^\d{1,20}$/.test(record?.windowId) ||
       !/^\d{1,10}$/.test(record.processId) ||
       !/^\d{1,20}$/.test(record.startedAtTicks)
     )
       return () => {};
-    const watch = { id: ++this.watchSequence, record, callback };
+    if (!Number.isInteger(band) || band < 0 || band > 4096) band = 0;
+    const watch = { id: ++this.watchSequence, record, callback, band };
     this.windowWatch = watch;
     this.sendWindowWatch();
     return () => {
@@ -169,9 +177,10 @@ export class DesktopTeleportMenu {
   sendWindowWatch() {
     if (!this.session?.ready) return;
     const watch = this.windowWatch;
+    const covers = watch?.band ? ` ${watch.band} ${process.pid}` : '';
     this.session.process.stdin.write(
       watch
-        ? `follow ${watch.id} ${watch.record.windowId} ${watch.record.processId} ${watch.record.startedAtTicks}\n`
+        ? `follow ${watch.id} ${watch.record.windowId} ${watch.record.processId} ${watch.record.startedAtTicks}${covers}\n`
         : 'follow 0 0 0 0\n',
     );
   }
