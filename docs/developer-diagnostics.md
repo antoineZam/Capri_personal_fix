@@ -16,7 +16,8 @@ technical logs. It does not start a model or make an external request.
   fields. **Open logs folder** opens the installation's runtime logs in Explorer.
 - **Desktop roaming** appears once Capri has roamed since she started. It lists
   the last 20 roaming decisions: time, reason, surface kind (seat, corner, side
-  hang, underside, taskbar floor or free point), result, planner weight, window
+  hang, underside, taskbar floor or free point), how she moved (glide, short
+  or full teleport), result, planner weight, window
   id, how many surfaces were refused because the pose would not fit, and how
   long the decision took. Window titles are never shown. Its first line says
   whether the native window follower runs (`helper ready`) or why it last

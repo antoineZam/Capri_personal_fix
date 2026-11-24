@@ -36,6 +36,15 @@ move never stalls. Process identity is checked only for the window actually
 chosen. Observing a window makes it the favourite, not the only destination.
 Recent decisions appear in **Settings → Developer → For developers**.
 
+Moves along the top edge of the window Capri sits on are glides: she slides to
+the new spot with a light bob instead of teleporting (at most 1.5 seconds, no
+lightning). Destinations closer than a quarter of the screen diagonal use a
+quicker, smaller teleport; farther ones keep the full one. When she lands on
+the window in front, the next pause is twice as long. Reduced motion and the
+dialogue presentation skip glides and short hops: she is placed instantly or
+uses the reduced teleport, as before. Grabbing her mid-glide stops her where
+she is, and a moving window takes over from a glide.
+
 Once seated, Capri follows her window as it moves. If the pose no longer fits
 (for example after snapping the window to the top of the screen), she moves to
 the nearest dock of the same window that does, such as a corner or a side, and
