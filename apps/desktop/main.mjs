@@ -4086,9 +4086,11 @@ async function initializeDesktop() {
       if (!allowed()) break;
       // A window that refused once (an elevated app, for example) is not retried this move.
       if (refused.has(choice.windowId)) continue;
-      // Nearby destinations get the quicker, smaller teleport.
+      // With app windows, nearby destinations get the quicker, smaller teleport.
       const near =
-        from && Math.hypot(choice.point.x - from.x, choice.point.y - from.y) < diagonal / 4;
+        windows &&
+        from &&
+        Math.hypot(choice.point.x - from.x, choice.point.y - from.y) < diagonal / 4;
       const variant = near ? 'short' : undefined;
       const moved = await roamTo(choice, { lease, allowed, fromPerch, variant }).catch(() => false);
       avatarRoaming.record({
