@@ -11,6 +11,7 @@ import {
 import {
   avatarDockFrame,
   avatarDockPoint,
+  mirrorPose,
   nearestAvatarDock,
   nearestDisplayAvatarDock,
   pointInReservedDesktop,
@@ -352,6 +353,50 @@ test('the ceiling landing materializes the inverted sprite at its own anchor and
   assert.ok(command.to.focus.y > command.to.y + 75, 'Upside-down arrival focuses below the feet');
   assert.equal(controller.session.spriteUrl, frame.url);
   assert.equal(controller.session.mask.poseId, frame.id);
+  controller.reset();
+});
+
+test('mirrored dock poses reach the overlay and clear when the pose turns back', async () => {
+  const calls = [];
+  const { controller, commands } = fixture({
+    parked: (method, payload) => {
+      calls.push([method, payload]);
+      return true;
+    },
+  });
+  const seat = {
+    id: 'pose-sit-edge',
+    kind: 'reviewed_pose',
+    url: 'capri://desktop/sprites/pose-sit-edge.png',
+    anchor: { name: 'seat', x: 599, y: 773 },
+    visibleBounds: { x: 183, y: 110, width: 887, height: 1067 },
+  };
+  const mirrored = mirrorPose(seat, canvas);
+  assert.equal(await controller.leave(geometry, sprite, canvas), true);
+  const contact = { x: area.x + 800, y: area.y + 400 };
+  assert.equal(await controller.updateFrame(mirrored, canvas, undefined, contact), true);
+  assert.deepEqual(calls.at(-1)[0], 'setFrame');
+  assert.equal(calls.at(-1)[1].mirror, true);
+  assert.equal(controller.session.mirror, true);
+  assert.equal(await controller.updateFrame(seat, canvas, undefined, contact), true);
+  assert.deepEqual(calls.at(-1)[0], 'setFrame');
+  assert.equal('mirror' in calls.at(-1)[1], false, 'turning back is a new frame, not a move');
+  assert.equal(controller.session.mirror, false);
+
+  const appearance = (frame) => ({ frame, canvas });
+  assert.equal(
+    await controller.hop({ x: area.x + 500, y: area.y + 500 }, undefined, appearance(mirrored)),
+    true,
+  );
+  assert.equal(commands.at(-1).arrival.mirror, true);
+  assert.equal(controller.session.mirror, true);
+  assert.equal(
+    await controller.hop({ x: area.x + 900, y: area.y + 500 }, undefined, appearance(seat)),
+    true,
+  );
+  assert.equal(commands.at(-1).mirror, true, 'the mirrored departure keeps its orientation');
+  assert.equal('mirror' in commands.at(-1).arrival, false);
+  assert.equal(controller.session.mirror, false);
   controller.reset();
 });
 

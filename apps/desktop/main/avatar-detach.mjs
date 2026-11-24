@@ -132,7 +132,12 @@ function arrivalOf(frame, canvas, mask) {
   const anchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
   return {
     anchor,
-    arrival: { anchor, spriteUrl: frame.url, dock: frame.anchor.name },
+    arrival: {
+      anchor,
+      spriteUrl: frame.url,
+      dock: frame.anchor.name,
+      ...(frame.mirror && { mirror: true }),
+    },
     mask: poseMask(frame, mask),
   };
 }
@@ -661,18 +666,14 @@ export class AvatarDetach {
     if (['reviewed_pose', 'reviewed_music'].includes(frame.kind))
       nextPoint = focusPose(nextPoint, anchor, frame.visibleBounds, canvas);
     else if (nextPoint.focus) delete nextPoint.focus;
-    if (
+    const samePose =
       !this.frameUpdate &&
       frame.url === session.spriteUrl &&
       frame.anchor.name === session.dock &&
-      nextPoint.x === point.x &&
-      nextPoint.y === point.y
-    )
-      return true;
+      (frame.mirror === true) === (session.mirror === true);
+    if (samePose && nextPoint.x === point.x && nextPoint.y === point.y) return true;
     if (
-      !this.frameUpdate &&
-      frame.url === session.spriteUrl &&
-      frame.anchor.name === session.dock &&
+      samePose &&
       anchor.x === session.anchor.x &&
       anchor.y === session.anchor.y &&
       nextPoint.scale === point.scale &&
@@ -691,6 +692,7 @@ export class AvatarDetach {
         anchor,
         point: nextPoint,
         dock: frame.anchor.name,
+        ...(frame.mirror && { mirror: true }),
       });
       if (!rendered) return false;
       if (!this.available || this.session !== session || request !== this.frameUpdate) return false;
@@ -700,6 +702,7 @@ export class AvatarDetach {
         anchor,
         mask: poseMask(frame, mask),
         dock: frame.anchor.name,
+        mirror: frame.mirror === true,
       });
       this.moveReplyGeometry(session.point);
       this.watchPoseMotion(session, rendered);
@@ -741,7 +744,13 @@ export class AvatarDetach {
       const rendered = await withTimeout(
         target.webContents.executeJavaScript(
           'globalThis.capriAvatarDetach.park(' +
-            JSON.stringify({ point, anchor, url: frame.url, dock: frame.anchor.name }) +
+            JSON.stringify({
+              point,
+              anchor,
+              url: frame.url,
+              dock: frame.anchor.name,
+              ...(frame.mirror && { mirror: true }),
+            }) +
             ')',
         ),
         this.timeoutMs,
@@ -764,6 +773,7 @@ export class AvatarDetach {
         displayId: display.id,
         spriteUrl: frame.url,
         dock: frame.anchor.name,
+        mirror: frame.mirror === true,
       });
       this.watchPoseMotion(session, rendered);
       target.showInactive();
@@ -1496,6 +1506,7 @@ export class AvatarDetach {
               seed,
               anchor: session.anchor,
               spriteUrl: session.spriteUrl,
+              ...(session.mirror && { mirror: true }),
               ...(destination.arrival && { arrival: destination.arrival }),
               effects,
               crossing,
@@ -1553,7 +1564,10 @@ export class AvatarDetach {
         }
         session.point = to;
         if (destination.arrival) {
-          Object.assign(session, destination.arrival, { mask: destination.mask });
+          Object.assign(session, destination.arrival, {
+            mask: destination.mask,
+            mirror: destination.arrival.mirror === true,
+          });
           this.watchPoseMotion(session, played.at(-1));
         }
         session.seen.add(to.key);
