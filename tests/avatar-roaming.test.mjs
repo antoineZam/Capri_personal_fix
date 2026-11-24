@@ -102,3 +102,32 @@ test('manual placement, disabling or a frequency change invalidate a pending aut
     false,
   );
 });
+
+test('roaming keeps a short decision log and forgets its history when switched back on', () => {
+  let now = 0;
+  const scheduler = new AvatarRoaming({ now: () => now, random: () => 0 });
+  scheduler.due(on);
+  for (let index = 0; index < 25; index++) {
+    now = index;
+    scheduler.record({ kind: 'seat', windowId: String(index), result: 'ok' });
+  }
+  assert.equal(scheduler.decisions().length, 20);
+  assert.deepEqual(
+    scheduler
+      .decisions()
+      .map(({ windowId }) => windowId)
+      .slice(0, 2),
+    ['24', '23'],
+  );
+  scheduler.record({ kind: 'corner', windowId: '7', result: 'perch failed' });
+  assert.deepEqual(
+    scheduler.recent(3).map(({ windowId }) => windowId),
+    ['24', '23', '22'],
+  );
+  scheduler.decisions()[0].kind = 'changed';
+  assert.equal(scheduler.decisions()[0].kind, 'corner');
+  scheduler.due({ ...on, avatarRoaming: false });
+  scheduler.due(on);
+  assert.deepEqual(scheduler.recent(), []);
+  assert.equal(scheduler.decisions().length, 20);
+});
