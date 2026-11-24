@@ -98,11 +98,18 @@ function anchoredPoint(seat, area, scale, anchor, visible, canvas) {
   };
 }
 
+/** Largest sprite scale for a work area: at most 42 % of its width and 48 % of its height. */
+function areaScale(scale, area) {
+  return Math.min(scale, area.width * 0.42, area.height * 0.48);
+}
+
+/** Edge poses may let a few authored pixels (fingers) wrap past their contact. */
+export const dockTolerance = (scale) => Math.max(4, scale * 0.05);
+
 /** False when anchoredPoint() would have to push the pose away from its contact point. */
 export function dockFits(seat, area, scale, anchor, visible, canvas, tolerance) {
   if (!seat || !area || !anchor || !visible || !canvas || !(scale > 0)) return false;
-  // Edge poses may let a few authored pixels (fingers) wrap past their contact.
-  tolerance ??= Math.max(4, scale * 0.05);
+  tolerance ??= dockTolerance(scale);
   const placed = anchoredPoint(seat, area, scale, anchor, visible, canvas);
   return Math.hypot(placed.x - (seat.x - area.x), placed.y - (seat.y - area.y)) <= tolerance;
 }
@@ -733,7 +740,7 @@ export class AvatarDetach {
     this.replyGeometryEpoch++;
     const { workArea: area } = display;
     const anchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
-    const scale = Math.min(session.point.scale, area.width * 0.42, area.height * 0.48);
+    const scale = areaScale(session.point.scale, area);
     let point = anchoredPoint(seat, area, scale, anchor, frame.visibleBounds, canvas);
     if (['reviewed_pose', 'reviewed_music'].includes(frame.kind))
       point = focusPose(point, anchor, frame.visibleBounds, canvas);
@@ -796,11 +803,13 @@ export class AvatarDetach {
   fitsDock(frame, canvas, seat, display) {
     const area = display?.workArea;
     if (!frame?.anchor || !frame.visibleBounds || !area) return false;
-    // Same scale as cursorDestination(); before leaving the frame, assume the
-    // largest detached scale that leave() can choose.
-    const scale = Math.min(this.session?.scale ?? 240, area.width * 0.42, area.height * 0.48);
     const anchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
-    return dockFits(seat, area, scale, anchor, frame.visibleBounds, canvas);
+    return dockFits(seat, area, this.fitScale(area), anchor, frame.visibleBounds, canvas);
+  }
+
+  /** Sprite scale on a work area, as cursorDestination() picks it; 240 px before leaving. */
+  fitScale(area) {
+    return areaScale(this.session?.scale ?? 240, area);
   }
 
   setPhase(phase) {
@@ -1337,7 +1346,7 @@ export class AvatarDetach {
     const anchor = { x: sprite.anchor.x / canvas.width, y: sprite.anchor.y / canvas.height };
     const from = portraitPoint(source, content, area, anchor);
     if (!from) throw new Error('The portrait is outside the active display.');
-    const scale = Math.min(240, Math.max(108, from.scale), area.width * 0.42, area.height * 0.48);
+    const scale = areaScale(Math.min(240, Math.max(108, from.scale)), area);
     const session = {
       source,
       anchor,
@@ -1368,7 +1377,7 @@ export class AvatarDetach {
         y: Math.round(cursor.y),
       });
     const targetArea = target.id === displayId ? area : target.workArea;
-    const targetScale = Math.min(scale, targetArea.width * 0.42, targetArea.height * 0.48);
+    const targetScale = areaScale(scale, targetArea);
     if (appearance) {
       const { frame, canvas, mask, free } = appearance;
       const { anchor: arrivalAnchor, ...pose } = arrivalOf(frame, canvas, mask);

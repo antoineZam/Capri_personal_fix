@@ -268,6 +268,17 @@ test('a dock fits only when the pose can touch its contact without being pushed 
   assert.equal(controller.fitsDock(seat, canvas, { x: -1100, y: 0 }, { workArea }), false);
   assert.equal(controller.fitsDock(seat, canvas, { x: -1100, y: 200 }, { workArea }), true);
   assert.equal(controller.fitsDock(seat, canvas, { x: -1100, y: 200 }, null), false);
+  assert.equal(controller.fitScale(workArea), 240);
+  assert.equal(controller.fitScale({ width: 400, height: 1000 }), 168);
+});
+
+test('the dock fit scale follows the detached sprite', async () => {
+  const { controller } = fixture();
+  assert.equal(await controller.leave(geometry, sprite, canvas), true);
+  const { scale } = controller.session;
+  assert.equal(controller.fitScale({ width: 4000, height: 4000 }), scale);
+  assert.equal(controller.fitScale({ width: 200, height: 4000 }), Math.min(scale, 84));
+  controller.reset();
 });
 
 test('automatic hops do not gravitate to screen corners when no spot is clear', async () => {
