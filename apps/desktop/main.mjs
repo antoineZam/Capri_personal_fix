@@ -4079,8 +4079,11 @@ async function initializeDesktop() {
         candidate.kind === 'free' || dockFitsHere(candidate.dock, candidate.point, display),
     });
     let failed = false;
+    const refused = new Set();
     for (const choice of order) {
       if (!allowed()) break;
+      // A window that refused once (an elevated app, for example) is not retried this move.
+      if (refused.has(choice.windowId)) continue;
       // Nearby destinations get the quicker, smaller teleport.
       const near =
         from && Math.hypot(choice.point.x - from.x, choice.point.y - from.y) < diagonal / 4;
@@ -4098,6 +4101,7 @@ async function initializeDesktop() {
       });
       if (moved) return choice;
       failed = true;
+      if (choice.windowId) refused.add(choice.windowId);
     }
     return null;
   }

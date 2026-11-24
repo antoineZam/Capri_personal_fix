@@ -207,3 +207,15 @@ test('glides still never give one window four moves in a row', () => {
     }
   }
 });
+
+test('the free spot always ends the plan as the last resort', () => {
+  const random = seeded(13);
+  for (let run = 0; run < 200; run++) {
+    const { order } = planRoam({ candidates: desk(random, 'a'), random });
+    assert.equal(order.filter(({ kind }) => kind === 'free').length, 1);
+    assert.ok(order.length <= 4);
+    if (order.length === 4) assert.equal(order.at(-1).kind, 'free');
+  }
+  const { order } = planRoam({ candidates: desk(seeded(1)).filter(({ kind }) => kind !== 'free') });
+  assert.equal(order.length, 3);
+});

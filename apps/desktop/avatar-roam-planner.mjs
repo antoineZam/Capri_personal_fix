@@ -80,6 +80,7 @@ function weigh(candidate, { from, diagonal, last, streak, preferWindowId }) {
  * (Efraimidis–Spirakis keys). current: { point, windowId, dock } of the perch, if any;
  * scale: sprite size, for glide durations. recent: successful moves, newest first. A
  * window that took the last three moves sits the next one out; fits() refusals are counted.
+ * The free spot, when there is one, is appended as the last resort.
  */
 export function planRoam({
   candidates,
@@ -111,5 +112,9 @@ export function planRoam({
     if (weight > 0) keyed.push({ key: random() ** (1 / weight), choice: { ...choice, weight } });
   }
   keyed.sort((a, b) => b.key - a.key);
-  return { order: keyed.slice(0, limit).map(({ choice }) => choice), unfit };
+  const order = keyed.slice(0, limit).map(({ choice }) => choice);
+  // The free spot always ends the list, so refused windows cannot stall a move.
+  const free = keyed.find(({ choice }) => choice.kind === 'free')?.choice;
+  if (free && !order.includes(free)) order.push(free);
+  return { order, unfit };
 }
