@@ -47,7 +47,7 @@ This repository is the user's **private fork of Capri**, a Windows desktop AI co
 - Vault: `%USERPROFILE%\Documents\Obsidian Vault`, synced by the Obsidian Git plugin. Only write files there; never run git in the vault unless the user asks.
 - Conventions: French content, file names without accents, YAML frontmatter (`tags`, `projet`, `depot`, `date`, `statut`), `[[wikilinks]]`, one folder per topic with a hub note, and a line in `Accueil.md` when a folder is added.
 - Capri notes live in `Perso/Informatique/`: "Capri - Guide d'utilisation", "Capri - Synchronisation upstream", and `Capri Roaming/` ("Capri Roaming - Diagnostic", "Capri Roaming - Plan de correction", step notes in `Etapes/`).
-- Current roadmap, the desktop-roaming plan: step 1 is done (merged and deployed on 2026-11-15; manual checks in the app still pending), steps 2 to 8 are to do. Each step note lists files, changes, a code sketch and acceptance checks; follow it and record any deviation.
+- Current roadmap, the desktop-roaming plan: all 8 steps are implemented on `main` (step 1 deployed on 2026-11-15; steps 2 to 8 merged on 2026-11-24, not deployed). Still pending: the manual acceptance matrix in the running app, the Electron verifier `tools/verify/verify-avatar-roaming.mjs`, and tuning the planner weights from the developer panel's decision log. Each step note records its commits, deviations and what was not verified.
 - When a change lands, update the step note (`statut` and a "Réalisation" section: commits, deviations, what was and was not verified) and the plan's "Avancement" table.
 
 ## Skills in this project
