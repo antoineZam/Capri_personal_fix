@@ -53,6 +53,7 @@ The log shows an authentication error. The user signs in again themselves:
 The fork's `main` holds only the upstream commits judged useful, while an official in-app update installs the whole release and overwrites deployed files. Before the user updates Capri from inside the app, agree on one of these:
 
 - **Stay on the fork**: skip the in-app update; keep deploying `main` with `update-capri.ps1`.
+- **Fork-only settings**: the fork adds companion settings that official Capri does not know (`avatarRoamWindows`). Official builds reject unknown companion keys, so after an official in-app update every companion setting falls back to its default (Settings shows "Saved settings could not be restored"), and the next save in Settings makes that permanent. Redeploy the fork right after updating, or have the user remove those keys from `data\desktop\companion.json` in the installation before Capri saves anything.
 - **Adopt the release**: merge the release commit into `main` on a branch (`git merge <release commit>`; this brings every upstream change), resolve conflicts in favour of the personal fixes, verify, fast-forward `main`, push, set `refs/sync/upstream-reviewed` to the release commit, update the installation (in-app update or installer), then redeploy with `update-capri.ps1 -Base <release commit>`. Record the change of base in the journal and in `CLAUDE.md` (the `bb0c2d7` references).
 
 ## Never
