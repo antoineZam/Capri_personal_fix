@@ -14,6 +14,28 @@ observe a window or monitors, Capri can also perch on the observed window and us
 the approved displays, and a perch made under observation ends when observation
 stops. Screen access is never enabled automatically.
 
+With app windows allowed, each move is planned over the surfaces that are
+actually open on the display: one list of window frames, front to back, with
+their ids and which one is in front. An edge hidden by a window in front of it,
+or whose pose would leave the screen, is skipped. The plan draws among:
+
+| Surface                                     | Base weight |
+| ------------------------------------------- | ----------- |
+| Top corner of a window (legs over the side) | 1.4         |
+| Top edge of a window                        | 1.0         |
+| Taskbar line (bottom of the work area)      | 0.8         |
+| Side of a window, near its top              | 0.6         |
+| Underside of a window                       | 0.3         |
+| Free spot in the air                        | 0.25        |
+
+The window in front counts 2.5 times, an observed window 3 times, a window used
+in the last three moves 0.3 times, the same kind of surface as the last move 0.6
+times, and a very short hop 0.2 times. A window never gets four moves in a row.
+Up to three choices are tried per move; the free spot is the last resort, so a
+move never stalls. Process identity is checked only for the window actually
+chosen. Observing a window makes it the favourite, not the only destination.
+Recent decisions appear in **Settings → Developer → For developers**.
+
 Roaming pauses while Settings is open, while you type, speak, drag or interact
 with Capri, during replies and voice playback, during computer control, while
 Capri sleeps, in Focus mode, and when her host window is minimized. A short quiet
