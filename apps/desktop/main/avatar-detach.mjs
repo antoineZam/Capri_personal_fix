@@ -127,6 +127,16 @@ function poseMask(frame, mask) {
     : mask;
 }
 
+/** Normalized anchor, overlay arrival and mask of the pose a hop lands in. */
+function arrivalOf(frame, canvas, mask) {
+  const anchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
+  return {
+    anchor,
+    arrival: { anchor, spriteUrl: frame.url, dock: frame.anchor.name },
+    mask: poseMask(frame, mask),
+  };
+}
+
 function rebasePoint(point, fromArea, toArea) {
   if (fromArea === toArea) return point;
   const dx = fromArea.x - toArea.x;
@@ -1351,8 +1361,7 @@ export class AvatarDetach {
     const targetScale = Math.min(scale, targetArea.width * 0.42, targetArea.height * 0.48);
     if (appearance) {
       const { frame, canvas, mask, free } = appearance;
-      const { x, y, name: dock } = frame.anchor;
-      const arrivalAnchor = { x: x / canvas.width, y: y / canvas.height };
+      const { anchor: arrivalAnchor, ...pose } = arrivalOf(frame, canvas, mask);
       const released =
         free && grabOffset
           ? {
@@ -1374,8 +1383,7 @@ export class AvatarDetach {
         area: targetArea,
         displayId: target.id,
         to: focusPose(point, arrivalAnchor, frame.visibleBounds, canvas),
-        arrival: { anchor: arrivalAnchor, spriteUrl: frame.url, dock },
-        mask: poseMask(frame, mask),
+        ...pose,
       };
     }
     const landing = grabOffset
@@ -1398,7 +1406,7 @@ export class AvatarDetach {
     }
     if (appearance) {
       const { frame, canvas, mask } = appearance;
-      const nextAnchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
+      const { anchor: nextAnchor, ...pose } = arrivalOf(frame, canvas, mask);
       const nextPoint = landing(
         area,
         this.owner.getContentBounds(),
@@ -1414,8 +1422,7 @@ export class AvatarDetach {
         {
           area,
           displayId: this.session.displayId,
-          arrival: { anchor: nextAnchor, spriteUrl: frame.url, dock: frame.anchor.name },
-          mask: poseMask(frame, mask),
+          ...pose,
         },
       );
     }
