@@ -906,7 +906,10 @@ async function initializeDesktop() {
       !verification && process.env.LOCALAPPDATA
         ? path.join(process.env.LOCALAPPDATA, 'Capri/Installer')
         : null,
-    roaming: () => avatarRoaming.decisions(),
+    roaming: () => ({
+      decisions: avatarRoaming.decisions(),
+      helper: desktopTeleportMenu?.status() ?? null,
+    }),
   });
   const huggingface = new HuggingFaceService({
     hub: hfHub,

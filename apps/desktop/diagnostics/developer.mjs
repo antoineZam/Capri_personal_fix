@@ -53,7 +53,7 @@ async function tail(file, maximumBytes = 64 * 1024) {
 
 /** On-demand only: no polling, models, network, or disk writes in the main process. */
 export class DeveloperDiagnostics {
-  constructor({ root, installerDirectory = null, now = Date.now, roaming = () => [] }) {
+  constructor({ root, installerDirectory = null, now = Date.now, roaming = () => null }) {
     this.root = path.resolve(root);
     this.installerDirectory = installerDirectory;
     this.now = now;
@@ -160,7 +160,7 @@ export class DeveloperDiagnostics {
       turns: this.timelines ?? [],
       unavailable,
       logs: items.map(({ file, ...item }) => item),
-      // Roaming decisions carry codes and window ids only, never titles.
+      // Roaming decisions and helper status carry codes and window ids only, never titles.
       roaming: this.roaming(),
     };
   }

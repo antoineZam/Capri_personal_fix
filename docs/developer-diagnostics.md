@@ -18,7 +18,10 @@ technical logs. It does not start a model or make an external request.
   the last 20 roaming decisions: time, reason, surface kind (seat, corner, side
   hang, underside, taskbar floor or free point), result, planner weight, window
   id, how many surfaces were refused because the pose would not fit, and how
-  long the decision took. Window titles are never shown.
+  long the decision took. Window titles are never shown. Its first line says
+  whether the native window follower runs (`helper ready`) or why it last
+  stopped (`build`, `start`, `timeout` or `exit`); a perch then keeps following
+  by polling, and Capri restarts the follower up to three times.
 - **Live refresh** updates every three seconds while this category and Settings
   are visible. Switching categories, hiding Settings or hiding the document
   suspends refresh. Uncheck it to inspect a stable snapshot.

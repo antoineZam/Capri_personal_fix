@@ -165,24 +165,32 @@ export class DeveloperPanel {
         }).format(value)
       : '—';
   }
-  renderRoaming(decisions) {
-    this.get('roaming-section').hidden = !decisions.length;
-    const text = decisions
-      .map(({ at, reason, kind, result, weight, windowId, unfit, ms }) =>
-        [
-          this.time(at),
-          reason,
-          kind,
-          result,
-          'w=' + weight,
-          windowId && '#' + windowId,
-          'unfit=' + unfit,
-          ms + ' ms',
-        ]
-          .filter(Boolean)
-          .join(' '),
-      )
-      .join('\n');
+  renderRoaming({ decisions = [], helper }) {
+    const failure = helper?.failure;
+    this.get('roaming-section').hidden = !decisions.length && !failure;
+    const lines = decisions.map(({ at, reason, kind, result, weight, windowId, unfit, ms }) =>
+      [
+        this.time(at),
+        reason,
+        kind,
+        result,
+        'w=' + weight,
+        windowId && '#' + windowId,
+        'unfit=' + unfit,
+        ms + ' ms',
+      ]
+        .filter(Boolean)
+        .join(' '),
+    );
+    if (helper)
+      lines.unshift(
+        helper.ready
+          ? 'helper ready'
+          : failure
+            ? `helper ${failure.reason} ${this.time(failure.at)}`
+            : 'helper off',
+      );
+    const text = lines.join('\n');
     const view = this.get('roaming');
     if (view.textContent !== text) view.textContent = text;
   }
@@ -249,7 +257,7 @@ export class DeveloperPanel {
     this.get('empty').hidden = Boolean(this.value.turns.length);
     this.get('turn-details').hidden = !this.value.turns.length;
     this.renderTurn();
-    this.renderRoaming(this.value.roaming ?? []);
+    this.renderRoaming(this.value.roaming ?? {});
     this.options(
       'log',
       this.value.logs.map((log) => ({
