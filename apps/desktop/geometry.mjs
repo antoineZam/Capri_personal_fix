@@ -113,7 +113,9 @@ export function spriteDragHit(point, rect, { alpha, imageSize, visibleBounds }) 
 
 export function spritePressKind(point, rect, { alpha, imageSize, poseId }, headpat = true, pose) {
   if (rect.enabled === false || !pointInRect(point, rect.lens ?? rect)) return null;
-  const { x: u, y: v } = spriteGrabPoint(point, rect);
+  const { x, y: v } = spriteGrabPoint(point, rect);
+  // Mirrored dock poses keep their alpha and body regions in source orientation.
+  const u = pose?.mirror ? 1 - x : x;
   const part = avatarBodyPartAt(u, v, (x, y) => opaquePixel(x, y, alpha, imageSize, 16), {
     ...pose,
     ...(poseId && { poseId }),

@@ -10,6 +10,7 @@ import {
   poseExtents,
 } from '../apps/desktop/avatar-docking.mjs';
 import { dockFits } from '../apps/desktop/main/avatar-detach.mjs';
+import { spritePressKind } from '../apps/desktop/geometry.mjs';
 
 const canvas = { width: 1254, height: 1254 };
 const seat = { x: 599 / 1254, y: 773 / 1254 };
@@ -84,4 +85,15 @@ test('the right corner seats a mirrored copy of the seat pose', () => {
     );
   assert.equal(fits(mirrored, { x: 1920, y: 300 }), false);
   assert.equal(fits(sitting, { x: 1200, y: 300 }), true);
+});
+
+test('mirrored poses are hit-tested in the orientation they were drawn in', () => {
+  // Opaque only in the left half of the artwork.
+  const alpha = Uint8Array.from({ length: 16 }, (_, index) => (index % 4 < 2 ? 255 : 0));
+  const mask = { alpha, imageSize: { width: 4, height: 4 } };
+  const rect = { x: 0, y: 0, width: 100, height: 100 };
+  const right = { x: 80, y: 50 };
+  assert.equal(spritePressKind(right, rect, mask, false), null);
+  assert.equal(spritePressKind(right, rect, mask, false, { mirror: true }), 'body');
+  assert.equal(spritePressKind({ x: 20, y: 50 }, rect, mask, false, { mirror: true }), null);
 });
