@@ -51,10 +51,15 @@ try {
       if (event.type === 'avatar.detach') window.__roamingPhases.push(event.phase);
     });
   });
-  const settings = await settingsView(application, 'appearance');
+  // Desktop roaming lives under Skills → Avatar interaction.
+  const settings = await settingsView(application, 'avatar-skill');
   assert.equal(await settings.locator('#avatar-roaming').isChecked(), false);
   assert.equal(await settings.locator('#avatar-roam-interval').isDisabled(), true);
+  assert.equal(await settings.locator('#avatar-roam-windows').isDisabled(), true);
+  assert.equal(await settings.locator('#avatar-roam-windows').isChecked(), false);
   await settings.locator('#avatar-roaming').check();
+  assert.equal(await settings.locator('#avatar-roam-windows').isDisabled(), false);
+  await settings.locator('#avatar-roam-windows').check();
   await settings.locator('#avatar-roam-interval').evaluate((input) => {
     input.value = '30';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -81,15 +86,18 @@ try {
     { timeout: 45000 },
   );
   report.checks.push('A second automatic move completes using the selected interval.');
-  const reopened = await settingsView(application, 'appearance');
+  const reopened = await settingsView(application, 'avatar-skill');
   assert.equal(await reopened.locator('#avatar-roaming').isChecked(), true);
   assert.equal(await reopened.locator('#avatar-roam-interval').inputValue(), '30');
+  assert.equal(await reopened.locator('#avatar-roam-windows').isChecked(), true);
   await reopened.locator('#avatar-roaming').uncheck();
   assert.equal(await reopened.locator('#avatar-roam-interval').isDisabled(), true);
+  assert.equal(await reopened.locator('#avatar-roam-windows').isDisabled(), true);
   await saveSettings(reopened);
   await reopened.locator('#settings-window-close').click();
   const state = await owner.evaluate(() => window.capri.bootstrap());
   assert.equal(state.companion.avatarRoaming, false);
+  assert.equal(state.companion.avatarRoamWindows, true);
   report.checks.push('Settings persist and roaming can be disabled again.');
   assert.deepEqual(report.errors, []);
   report.passed = true;
