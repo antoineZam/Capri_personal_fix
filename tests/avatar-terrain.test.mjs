@@ -3,8 +3,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildTerrain,
+  nearestDocks,
+  rectsOverlap,
   subtractIntervals,
   surfaceDock,
+  templateId,
   windowSurfaces,
 } from '../apps/desktop/avatar-terrain.mjs';
 
@@ -163,4 +166,50 @@ test('corners are single contacts that need a clear, on-screen pose box', () => 
   );
   const flush = window('3', { x: 1200, y: 300, width: 720, height: 500 });
   assert.deepEqual(corners([flush]), [['3', 'left', 1200, 1200]]);
+});
+
+test('a covered perch finds the nearest open contact, on its own edge first', () => {
+  const hang = { left: -10, right: 160, top: -90, bottom: 120 };
+  const perched = {
+    ...main,
+    poses: { ...main.poses, left: { ...hang, left: -160, right: 10 }, right: hang },
+  };
+  const a = window('1', { x: 400, y: 300, width: 800, height: 500 });
+  const cover = { x: 600, y: 150, width: 300, height: 400 };
+  const surfaces = buildTerrain([a], [perched], { occluders: [cover], floors: false });
+  const contact = { x: 700, y: 300 };
+  const [first, second, ...rest] = nearestDocks(surfaces, contact, 'top');
+  assert.equal(first.dock.edge, 'top');
+  assert.equal(first.surface.to, cover.x - seat.right);
+  assert.equal(first.dock.fraction, (cover.x - seat.right - 400) / 800);
+  assert.equal(second.dock.edge, 'top');
+  assert.equal(second.surface.from, cover.x + cover.width - seat.left);
+  assert.ok(rest.length > 0 && rest.every(({ dock }) => dock.edge !== 'top'));
+  assert.ok(first.distance < second.distance);
+
+  const everything = { x: 0, y: 0, width: 1920, height: 1040 };
+  assert.deepEqual(buildTerrain([a], [perched], { occluders: [everything], floors: false }), []);
+});
+
+test('a window snapped to the top of the screen keeps its side hangs', () => {
+  const hang = { left: -10, right: 160, top: -90, bottom: 120 };
+  const perched = {
+    ...main,
+    poses: { ...main.poses, left: { ...hang, left: -160, right: 10 }, right: hang },
+  };
+  const snapped = window('1', { x: 300, y: 0, width: 1320, height: 520 });
+  const kinds = buildTerrain([snapped], [perched], { floors: false }).map(({ dock }) => dock.kind);
+  assert.deepEqual(kinds.sort(), ['left', 'right']);
+});
+
+test('rects overlap only when they share some area', () => {
+  const a = { x: 0, y: 0, width: 10, height: 10 };
+  assert.equal(rectsOverlap(a, { x: 9, y: 9, width: 5, height: 5 }), true);
+  assert.equal(rectsOverlap(a, { x: 10, y: 0, width: 5, height: 5 }), false);
+});
+
+test('dock templates map back to their pose ids', () => {
+  assert.equal(templateId({ kind: 'seat', edge: 'top' }), 'seat');
+  assert.equal(templateId({ kind: 'corner', edge: 'top', side: 'right' }), 'corner-right');
+  assert.equal(templateId({ kind: 'floor', edge: 'bottom' }), 'floor');
 });

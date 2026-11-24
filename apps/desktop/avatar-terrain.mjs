@@ -42,14 +42,25 @@ function edgeAxes(edge) {
   return { along: AXES[horizontal ? 'x' : 'y'], across: AXES[horizontal ? 'y' : 'x'] };
 }
 
+/** Coordinate of a rect's edge on the axis across it. */
+function edgeLine(rect, edge, across) {
+  return rect[across.pos] + (edge === 'top' || edge === 'left' ? 0 : rect[across.size]);
+}
+
+/** Whether two rects share some area (touching edges do not count). */
+export const rectsOverlap = (a, b) =>
+  a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+
+/** Pose template id of a dock: its kind, or corner-left / corner-right. */
+export const templateId = ({ kind, side }) => (kind === 'corner' ? 'corner-' + side : kind);
+
 /**
  * Contact spans along one edge of rect where the pose box (extents around the
  * contact) stays inside area, within slack, and clear of every occluder.
  */
 export function edgeSpans(rect, { dock, range }, extents, area, occluders, slack = 0) {
   const { along, across } = edgeAxes(dock.edge);
-  const line =
-    rect[across.pos] + (dock.edge === 'top' || dock.edge === 'left' ? 0 : rect[across.size]);
+  const line = edgeLine(rect, dock.edge, across);
   const near = line + extents[across.low];
   const far = line + extents[across.high];
   if (near < area[across.pos] - slack || far > area[across.pos] + area[across.size] + slack)
@@ -104,6 +115,19 @@ export function buildTerrain(windows, areas, { occluders = [], floors = true } =
 export function surfaceDock({ dock, rect }, position) {
   const { along } = edgeAxes(dock.edge);
   return { ...dock, fraction: (position - rect[along.pos]) / rect[along.size] };
+}
+
+/** The closest contact of every surface to a point: docks on the given edge first. */
+export function nearestDocks(surfaces, point, edge) {
+  return surfaces
+    .map((surface) => {
+      const { along, across } = edgeAxes(surface.dock.edge);
+      const position = Math.max(surface.from, Math.min(surface.to, point[along.pos]));
+      const line = edgeLine(surface.rect, surface.dock.edge, across);
+      const distance = Math.hypot(position - point[along.pos], line - point[across.pos]);
+      return { surface, dock: surfaceDock(surface, position), distance };
+    })
+    .sort((a, b) => (a.dock.edge !== edge) - (b.dock.edge !== edge) || a.distance - b.distance);
 }
 
 /** A native window id with a safe-integer, non-empty frame. */

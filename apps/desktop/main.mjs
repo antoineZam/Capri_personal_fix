@@ -42,6 +42,9 @@ import {
   FLOOR_TEMPLATE,
   TERRAIN_TEMPLATES,
   buildTerrain,
+  nearestDocks,
+  rectsOverlap,
+  templateId,
   validWindowRect,
   windowSurfaces,
 } from './avatar-terrain.mjs';
@@ -3684,6 +3687,47 @@ async function initializeDesktop() {
       await avatarDetach.updateFrame(desktopFrame, catalog.canvas, maskFor(desktopFrame.id));
   }
 
+  function hidePerch(attempt) {
+    attempt.hidden = true;
+    avatarDetach.hideParked();
+    syncAvatarComposer();
+  }
+
+  /**
+   * The current dock while its pose is clear and fits; otherwise the nearest open dock of
+   * the same window; 'covered' when windows in front hide all of it, null when none fits.
+   */
+  function settlePerchDock(attempt, target, contact, display) {
+    const covers = target.covers ?? [];
+    const fits = dockFitsHere(attempt.dock, contact, display);
+    // The common case, followed at window-move rate, costs this one fit check.
+    if (fits && !covers.length) return { dock: attempt.dock, point: contact };
+    // Native frames and covers are physical pixels; the Settings target is in DIP.
+    const { x, y, width, height } = target.dipBounds ?? target;
+    const rect = { x, y, width, height };
+    const area = terrainArea(display, { dip: Boolean(target.dipBounds) });
+    const at = avatarDockPoint(rect, attempt.dock);
+    const extents = area.poses[templateId(attempt.dock)];
+    const body = extents && {
+      x: at.x + extents.left,
+      y: at.y + extents.top,
+      width: extents.right - extents.left,
+      height: extents.bottom - extents.top,
+    };
+    if (fits && !(body && covers.some((cover) => rectsOverlap(cover, body))))
+      return { dock: attempt.dock, point: contact };
+    const windowId = attempt.record?.windowId ?? null;
+    const surfaces = buildTerrain([{ windowId, rect, perch: true, foreground: false }], [area], {
+      occluders: covers,
+      floors: false,
+    });
+    for (const { dock } of nearestDocks(surfaces, at, attempt.dock.edge)) {
+      const point = windowDock(target, dock);
+      if (dockFitsHere(dock, point)) return { dock, point };
+    }
+    return covers.length ? 'covered' : null;
+  }
+
   async function followPerch(attempt) {
     if (perch !== attempt || attempt.updating || !avatarDetach.available) return;
     if (attempt.targetLost) {
@@ -3697,23 +3741,26 @@ async function initializeDesktop() {
     attempt.pending = null;
     attempt.updating = true;
     try {
-      if (target.state === 'unavailable') {
-        attempt.hidden = true;
-        avatarDetach.hideParked();
-        syncAvatarComposer();
-        return;
-      }
-      const point = windowDock(target, attempt.dock);
-      const display = screen.getDisplayNearestPoint(point);
+      if (target.state === 'unavailable') return hidePerch(attempt);
+      let point = windowDock(target, attempt.dock);
+      let display = screen.getDisplayNearestPoint(point);
       if (attempt.lease && !captureIncludesDisplay(attempt.lease, display.id))
         return await finishPerch(attempt);
-      if (!visibleAvatarDock(attempt.dock, point, display.workArea)) {
-        // Moving the contact off screen does not close the verified target.
-        // Keep its watcher so the same perch returns when the contact is visible.
-        attempt.hidden = true;
-        avatarDetach.hideParked();
-        syncAvatarComposer();
-        return;
+      // Moving the contact off screen does not close the verified target.
+      // Keep its watcher so the same perch returns when the contact is visible.
+      if (!visibleAvatarDock(attempt.dock, point, display.workArea)) return hidePerch(attempt);
+      const settled = settlePerchDock(attempt, target, point, display);
+      if (settled === 'covered') {
+        // The 400 ms tick sends Capri elsewhere if the cover stays.
+        attempt.coveredSince ??= Date.now();
+        return hidePerch(attempt);
+      }
+      if (!settled) return await finishPerch(attempt, true);
+      attempt.coveredSince = null;
+      if (settled.point !== point) {
+        attempt.dock = settled.dock;
+        point = settled.point;
+        display = screen.getDisplayNearestPoint(point);
       }
       const restoring = attempt.hidden === true;
       attempt.hidden = false;
@@ -3794,7 +3841,13 @@ async function initializeDesktop() {
             onChange: changed,
           });
           attempt.localTracking = Boolean(localWatch);
-          attempt.stopTracking = localWatch ?? desktopTeleportMenu?.watchWindow(record, changed);
+          // With app windows allowed, the helper also reports windows covering the pose.
+          const near = screen.getDisplayNearestPoint(seat);
+          const band = liveCompanionSettings().avatarRoamWindows
+            ? Math.ceil(avatarDetach.fitScale(near.workArea) * (near.scaleFactor || 1))
+            : 0;
+          attempt.stopTracking =
+            localWatch ?? desktopTeleportMenu?.watchWindow(record, changed, band);
         }
         return true;
       }
@@ -3895,9 +3948,9 @@ async function initializeDesktop() {
       }));
   }
 
-  /** One display's work area in physical pixels, with the box of every dock pose on it. */
-  function terrainArea(display) {
-    const ratio = display.scaleFactor || 1;
+  /** One display's work area in physical pixels (or DIP), with the box of every dock pose. */
+  function terrainArea(display, { dip = false } = {}) {
+    const ratio = dip ? 1 : display.scaleFactor || 1;
     const scale = avatarDetach.fitScale(display.workArea);
     const { width, height } = catalog.canvas;
     const poses = {};
@@ -3912,7 +3965,7 @@ async function initializeDesktop() {
           )
         : null;
     }
-    const rect = screen.dipToScreenRect(null, display.workArea);
+    const rect = dip ? display.workArea : screen.dipToScreenRect(null, display.workArea);
     return { id: display.id, rect, poses, slack: dockTolerance(scale) * ratio };
   }
 
@@ -4085,6 +4138,15 @@ async function initializeDesktop() {
       return;
     if (perch?.targetLost) {
       await followPerch(perch);
+      return;
+    }
+    if (perch?.coveredSince && Date.now() - perch.coveredSince >= 1500) {
+      avatarDesktopUpdate = true;
+      try {
+        await finishPerch(perch, true);
+      } finally {
+        avatarDesktopUpdate = false;
+      }
       return;
     }
     const now = Date.now();
