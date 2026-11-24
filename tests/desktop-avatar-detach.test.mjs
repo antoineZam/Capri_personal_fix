@@ -1036,7 +1036,7 @@ test('a press or a new placement stops a glide where it is', async () => {
   const stopped = controller.session.point;
   assert.ok(stopped.x > from.x && stopped.x < to.x, 'stopped between both ends');
   glides[0]({ reducedMotion: false });
-  assert.equal(await gliding, false);
+  assert.equal(await gliding, null, 'superseded, not refused');
   assert.equal(controller.session.point, stopped, 'a late renderer reply does not move it');
 
   const next = controller.updateFrame(seated, canvas, null, seat(600), { glide: 400 });
@@ -1047,8 +1047,12 @@ test('a press or a new placement stops a glide where it is', async () => {
   const placed = controller.session.point;
   assert.equal(placed.x, 750, 'a follow placement during a glide is authoritative');
   glides[1]({ reducedMotion: false });
-  assert.equal(await next, false);
+  assert.equal(await next, null);
   assert.equal(controller.session.point, placed);
+  const refused = controller.updateFrame(seated, canvas, null, seat(900), { glide: 400 });
+  await new Promise((resolve) => setImmediate(resolve));
+  glides[2](false);
+  assert.equal(await refused, false, 'a renderer refusal is not a takeover');
   controller.reset();
 });
 

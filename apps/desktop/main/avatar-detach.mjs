@@ -550,7 +550,10 @@ export class AvatarDetach {
         }));
   }
 
-  /** Glides the parked sprite along an edge; main only estimates its position meanwhile. */
+  /**
+   * Glides the parked sprite along an edge; main only estimates its position meanwhile.
+   * Resolves true when done, false when the renderer refused, null when superseded.
+   */
   async glide(session, from, to, duration) {
     this.cancelPlacement();
     // Beats the revision of the cancel above, which reaches the renderer after the glide.
@@ -561,7 +564,8 @@ export class AvatarDetach {
         this.updateParked('glide', { to, duration, revision }),
         duration + this.timeoutMs,
       ).catch(() => false);
-      if (this.glideMotion !== motion || this.session !== session || !done) return false;
+      if (this.glideMotion !== motion || this.session !== session) return null;
+      if (!done) return false;
       session.point = to;
       this.moveReplyGeometry(to);
       return true;

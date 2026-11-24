@@ -4007,11 +4007,14 @@ async function initializeDesktop() {
       !perch.hidden &&
       perch.record?.windowId === choice.windowId
     ) {
-      Object.assign(perch, { dock: choice.dock, seatPoint: choice.point });
+      const seated = Object.assign(perch, { dock: choice.dock, seatPoint: choice.point });
+      const { display } = seated;
+      const glided = await updateSeatedFrame(choice.point, display, false, { glide: choice.glide });
+      // A press, a window move or the end of the perch took over: leave placement to it.
+      if (glided === null) return perch === seated;
       // A refused glide places instantly: the dock and the sprite never part.
       return (
-        (await updateSeatedFrame(choice.point, perch.display, false, { glide: choice.glide })) ||
-        updateSeatedFrame(choice.point, perch.display)
+        glided || (perch === seated && !seated.hidden && updateSeatedFrame(choice.point, display))
       );
     }
     if (choice.kind === 'free') return hopFree(choice.point, { allowed, fromPerch, variant });
