@@ -3473,19 +3473,43 @@ async function initializeDesktop() {
     }
     avatarRoaming.postpone(liveCompanionSettings(), 60000);
     if (await tryAvatarDock(cursor)) return true;
-    const wasPerched = Boolean(perch);
-    const arrival = wasPerched && avatarTravelPose(desktopFrame ?? frameIds.get('neutral'), true);
+    return hopFree(cursor, { grabOffset });
+  }
+
+  /** The pose Capri lands in when she leaves a perch for open desktop. */
+  function freeFrame() {
+    return desktopFrame ?? frameIds.get('neutral');
+  }
+
+  async function hopFree(point, { allowed, grabOffset, fromPerch = Boolean(perch) } = {}) {
+    const arrival = fromPerch && avatarTravelPose(freeFrame(), true);
     clearPerch();
     try {
       return grabOffset
-        ? canTeleport() && (await avatarDetach.hop(cursor, grabOffset, arrival))
-        : await launchAvatarTo(cursor, undefined, undefined, arrival);
+        ? canTeleport() && (await avatarDetach.hop(point, grabOffset, arrival))
+        : await launchAvatarTo(point, allowed, undefined, arrival);
     } finally {
-      if (wasPerched && !perch && desktopFrame && avatarDetach?.available)
+      if (fromPerch && !perch && desktopFrame && avatarDetach?.available)
         void avatarDetach
           .updateFrame(desktopFrame, catalog.canvas, maskFor(desktopFrame.id))
           .catch(() => {});
     }
+  }
+
+  /** A free landing on one display that keeps the whole sprite clear of the companion. */
+  function freeRoamPoint(display, fromPerch = Boolean(perch)) {
+    const session = avatarDetach.session;
+    const frame = fromPerch && freeFrame();
+    const anchor = frame?.anchor
+      ? { x: frame.anchor.x / catalog.canvas.width, y: frame.anchor.y / catalog.canvas.height }
+      : session?.anchor;
+    return randomAvatarDestination(
+      display.workArea,
+      window.getBounds(),
+      avatarDetach.desktopPoint,
+      Math.random,
+      session?.point?.scale && anchor ? { scale: session.point.scale, anchor } : undefined,
+    );
   }
 
   async function returnAvatar(drop) {
@@ -3632,10 +3656,9 @@ async function initializeDesktop() {
     if (!avatarDetach.available) return;
     if (teleport) {
       avatarRoaming.postpone(liveCompanionSettings(), 60000);
-      const frame = desktopFrame ?? frameIds.get('neutral');
       if (
         await avatarDetach
-          .hop(undefined, undefined, avatarTravelPose(frame, true))
+          .hop(undefined, undefined, avatarTravelPose(freeFrame(), true))
           .catch(() => false)
       )
         return;
@@ -3875,32 +3898,9 @@ async function initializeDesktop() {
       )
         return;
     }
-    const wasPerched = Boolean(perch);
-    const arrival = wasPerched && avatarTravelPose(desktopFrame ?? frameIds.get('neutral'), true);
-    const session = avatarDetach.session;
-    const landingAnchor = arrival?.frame?.anchor
-      ? {
-          x: arrival.frame.anchor.x / catalog.canvas.width,
-          y: arrival.frame.anchor.y / catalog.canvas.height,
-        }
-      : session?.anchor;
-    const point = randomAvatarDestination(
-      display.workArea,
-      window.getBounds(),
-      avatarDetach.desktopPoint,
-      Math.random,
-      session?.point?.scale && landingAnchor
-        ? { scale: session.point.scale, anchor: landingAnchor }
-        : undefined,
-    );
+    const point = freeRoamPoint(display);
     if (!point || !allowed()) return;
-    clearPerch();
-    try {
-      await launchAvatarTo(point, allowed, undefined, arrival);
-    } finally {
-      if (wasPerched && !perch && desktopFrame && avatarDetach.available)
-        await avatarDetach.updateFrame(desktopFrame, catalog.canvas, maskFor(desktopFrame.id));
-    }
+    await hopFree(point, { allowed });
   }
 
   async function updateDesktopAvatar() {
