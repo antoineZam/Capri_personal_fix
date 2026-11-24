@@ -7,12 +7,14 @@ const AXES = {
   y: { pos: 'y', size: 'height', low: 'top', high: 'bottom' },
 };
 
-// Fractions are of the window edge; the floor spans the work area.
+// Fractions are of the window edge (corners are its ends); the floor spans the work area.
 export const TERRAIN_TEMPLATES = Object.freeze([
   { id: 'seat', dock: { kind: 'seat', edge: 'top' }, range: [0.1, 0.9] },
   { id: 'left', dock: { kind: 'left', edge: 'left' }, range: [0.08, 0.3] },
   { id: 'right', dock: { kind: 'right', edge: 'right' }, range: [0.08, 0.3] },
   { id: 'ceiling', dock: { kind: 'ceiling', edge: 'bottom' }, range: [0.1, 0.9] },
+  { id: 'corner-left', dock: { kind: 'corner', edge: 'top', side: 'left' }, range: [0, 0] },
+  { id: 'corner-right', dock: { kind: 'corner', edge: 'top', side: 'right' }, range: [1, 1] },
 ]);
 const FLOOR = { id: 'floor', dock: { kind: 'floor', edge: 'bottom' }, range: [0.04, 0.96] };
 

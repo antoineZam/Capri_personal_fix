@@ -30,6 +30,19 @@ export function nearestAvatarDock(point, bounds, radius, display = false) {
       distance: Math.abs(point.x - x - width),
     });
   }
+  if (!display)
+    for (const side of ['left', 'right']) {
+      const corner = side === 'left' ? x : x + width;
+      // A drop near a corner prefers it over the plain seat next to it.
+      const distance = Math.hypot(point.x - corner, point.y - y) * 0.6;
+      options.push({
+        kind: 'corner',
+        edge: 'top',
+        side,
+        fraction: side === 'left' ? 0 : 1,
+        distance,
+      });
+    }
   const inside = options.filter(({ distance }) => distance <= radius);
   return inside.sort((a, b) => a.distance - b.distance)[0] ?? null;
 }
@@ -97,8 +110,24 @@ export function poseExtents(anchor, visible, canvas, scale) {
   };
 }
 
+export const MIRRORED_SEAT = 'pose-sit-edge:mirror';
+
+/** Right-hand copy of a pose: same artwork and id, reflected anchor and visible box. */
+export function mirrorPose(frame, canvas) {
+  const { anchor, visibleBounds: box } = frame;
+  return {
+    ...frame,
+    source: frame,
+    mirror: true,
+    anchor: { ...anchor, x: canvas.width - anchor.x },
+    visibleBounds: { ...box, x: canvas.width - box.x - box.width },
+  };
+}
+
 export function avatarDockFrame(frames, dock) {
   if (!dock) return undefined;
+  if (dock.kind === 'corner')
+    return frames.get(dock.side === 'right' ? MIRRORED_SEAT : 'pose-sit-edge');
   const { kind, edge, display } = dock;
   if (kind === 'floor') return frames.get('pose-sit-floor');
   const spriteToRight = (edge === 'right') !== Boolean(display);

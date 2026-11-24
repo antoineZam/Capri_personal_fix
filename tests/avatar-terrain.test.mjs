@@ -141,3 +141,26 @@ test('native window surfaces are validated and reduced to geometry', () => {
   const many = Array.from({ length: 40 }, () => ({ ...good, foreground: false }));
   assert.equal(windowSurfaces({ ok: true, windows: many }).length, 32);
 });
+
+test('corners are single contacts that need a clear, on-screen pose box', () => {
+  const cornered = {
+    ...main,
+    poses: { ...main.poses, 'corner-left': seat, 'corner-right': seat },
+  };
+  const corners = (windows) =>
+    buildTerrain(windows, [cornered], { floors: false })
+      .filter(({ dock }) => dock.kind === 'corner')
+      .map(({ windowId, dock, from, to }) => [windowId, dock.side, from, to]);
+  const a = window('1', { x: 400, y: 300, width: 800, height: 500 });
+  assert.deepEqual(corners([a]), [
+    ['1', 'left', 400, 400],
+    ['1', 'right', 1200, 1200],
+  ]);
+  const front = window('2', { x: 300, y: 250, width: 200, height: 100 });
+  assert.deepEqual(
+    corners([front, a]).filter(([id]) => id === '1'),
+    [['1', 'right', 1200, 1200]],
+  );
+  const flush = window('3', { x: 1200, y: 300, width: 720, height: 500 });
+  assert.deepEqual(corners([flush]), [['3', 'left', 1200, 1200]]);
+});
