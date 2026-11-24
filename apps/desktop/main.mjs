@@ -4163,11 +4163,13 @@ async function initializeDesktop() {
       avatarDesktopUpdate = true;
       avatarRoaming.postpone(liveCompanionSettings());
       const revision = avatarRoaming.revision;
+      let choice;
       try {
-        await roamDesktopAvatar(watching, revision);
+        choice = await roamDesktopAvatar(watching, revision);
       } finally {
+        // Capri lingers twice as long on the window you are working in.
         if (avatarRoaming.current(liveCompanionSettings(), revision))
-          avatarRoaming.postpone(liveCompanionSettings());
+          avatarRoaming.postpone(liveCompanionSettings(), 0, choice?.foreground ? 2 : 1);
         avatarDesktopUpdate = false;
       }
       return;

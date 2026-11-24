@@ -33,10 +33,12 @@ export class AvatarRoaming {
     if (blocked) this.nextAt = Math.max(this.nextAt, this.now() + 5000);
     return !blocked && this.now() >= this.nextAt;
   }
-  postpone(settings, minimumMs = 0) {
+  /** A dwell factor can only lengthen the pause: the chosen interval stays a minimum. */
+  postpone(settings, minimumMs = 0, dwell = 1) {
     this.sync(settings);
     this.revision++;
-    if (this.enabled) this.nextAt = this.now() + Math.max(minimumMs, this.delay());
+    if (this.enabled)
+      this.nextAt = this.now() + Math.max(minimumMs, this.delay() * Math.max(1, dwell));
   }
   current(settings, revision) {
     this.sync(settings);

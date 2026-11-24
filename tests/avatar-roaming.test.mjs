@@ -131,3 +131,14 @@ test('roaming keeps a short decision log and forgets its history when switched b
   assert.deepEqual(scheduler.recent(), []);
   assert.equal(scheduler.decisions().length, 20);
 });
+
+test('a dwell factor only ever lengthens the pause', () => {
+  const pause = (dwell) => {
+    const scheduler = new AvatarRoaming({ now: () => 0, random: () => 0.5 });
+    scheduler.postpone(on, 0, dwell);
+    return scheduler.nextAt;
+  };
+  assert.equal(pause(2), 2 * pause(1));
+  assert.equal(pause(0.5), pause(1));
+  assert.equal(pause(undefined), pause(1));
+});
