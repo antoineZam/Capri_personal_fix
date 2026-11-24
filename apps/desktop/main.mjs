@@ -3638,6 +3638,7 @@ async function initializeDesktop() {
     point = perch?.seatPoint,
     display = perch?.display,
     restoring = false,
+    options,
   ) {
     let frame =
       desktopFrame?.id === 'pose-sleep'
@@ -3660,8 +3661,8 @@ async function initializeDesktop() {
     if (!frame) return false;
     const mask = maskFor(frame.id, frame);
     return display
-      ? avatarDetach.followFrame(frame, catalog.canvas, mask, point, display, restoring)
-      : avatarDetach.updateFrame(frame, catalog.canvas, mask, point);
+      ? avatarDetach.followFrame(frame, catalog.canvas, mask, point, display, restoring, options)
+      : avatarDetach.updateFrame(frame, catalog.canvas, mask, point, options);
   }
 
   function clearPerch() {
@@ -4000,6 +4001,19 @@ async function initializeDesktop() {
   }
 
   async function roamTo(choice, { lease, allowed, fromPerch, variant }) {
+    if (
+      choice.glide &&
+      perch?.seated &&
+      !perch.hidden &&
+      perch.record?.windowId === choice.windowId
+    ) {
+      Object.assign(perch, { dock: choice.dock, seatPoint: choice.point });
+      // A refused glide places instantly: the dock and the sprite never part.
+      return (
+        (await updateSeatedFrame(choice.point, perch.display, false, { glide: choice.glide })) ||
+        updateSeatedFrame(choice.point, perch.display)
+      );
+    }
     if (choice.kind === 'free') return hopFree(choice.point, { allowed, fromPerch, variant });
     if (!choice.windowId) return perchOn(null, null, choice.dock, undefined, allowed, { variant });
     // Process identity is only checked for the window actually chosen.
@@ -4050,9 +4064,11 @@ async function initializeDesktop() {
     if (free) candidates.push({ kind: 'free', point: free });
     const from = avatarDetach.desktopPoint;
     const diagonal = Math.hypot(display.workArea.width, display.workArea.height);
+    const seated = perch?.seated && !perch.hidden ? perch : null;
     const { order, unfit } = planRoam({
       candidates,
-      from,
+      current: { point: from, windowId: seated?.record?.windowId, dock: seated?.dock },
+      scale: avatarDetach.session?.point?.scale ?? 240,
       diagonal,
       recent: avatarRoaming.recent(),
       preferWindowId,
@@ -4070,6 +4086,7 @@ async function initializeDesktop() {
       avatarRoaming.record({
         reason,
         kind: choice.kind,
+        move: choice.glide ? 'glide' : (variant ?? 'teleport'),
         ...(choice.windowId && { windowId: choice.windowId }),
         weight: Math.round(choice.weight * 100) / 100,
         unfit,

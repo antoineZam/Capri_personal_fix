@@ -168,11 +168,12 @@ export class DeveloperPanel {
   renderRoaming({ decisions = [], helper }) {
     const failure = helper?.failure;
     this.get('roaming-section').hidden = !decisions.length && !failure;
-    const lines = decisions.map(({ at, reason, kind, result, weight, windowId, unfit, ms }) =>
+    const lines = decisions.map(({ at, reason, kind, move, result, weight, windowId, unfit, ms }) =>
       [
         this.time(at),
         reason,
         kind,
+        move,
         result,
         'w=' + weight,
         windowId && '#' + windowId,

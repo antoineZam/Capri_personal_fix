@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { planRoam, roamCandidates } from '../apps/desktop/avatar-roam-planner.mjs';
+import { glideMove, planRoam, roamCandidates } from '../apps/desktop/avatar-roam-planner.mjs';
 
 function seeded(seed) {
   return () => {
@@ -114,7 +114,7 @@ test('short hops are less likely than equally good far ones', () => {
   for (let run = 0; run < 1000; run++) {
     const { order } = planRoam({
       candidates: [near, far],
-      from: { x: 100, y: 100 },
+      current: { point: { x: 100, y: 100 } },
       diagonal: Math.hypot(1920, 1040),
       random,
     });
@@ -142,5 +142,68 @@ test('corners are one contact, edges are sampled inside their span', () => {
   for (const { dock, share } of samples) {
     assert.equal(share, 0.5);
     assert.ok(dock.fraction >= 0.1 && dock.fraction <= 0.9);
+  }
+});
+
+test('moves along the current top edge glide instead of teleporting', () => {
+  const seat = { kind: 'seat', edge: 'top', fraction: 0.3 };
+  const current = { windowId: 'a', dock: seat, point: { x: 500, y: 300 } };
+  const along = {
+    kind: 'seat',
+    windowId: 'a',
+    dock: { ...seat, fraction: 0.7 },
+    point: { x: 800, y: 300 },
+  };
+  assert.equal(glideMove(current, along, 240), 500);
+  assert.equal(glideMove(current, { ...along, point: { x: 510, y: 300 } }, 240), 350);
+  assert.equal(glideMove(current, { ...along, point: { x: 1900, y: 300 } }, 240), 1500);
+  const right = { kind: 'corner', edge: 'top', side: 'right', fraction: 1 };
+  assert.equal(
+    glideMove(current, { ...along, kind: 'corner', dock: right }, 240),
+    0,
+    'mirror flips',
+  );
+  const left = { kind: 'corner', edge: 'top', side: 'left', fraction: 0 };
+  assert.ok(glideMove(current, { ...along, kind: 'corner', dock: left }, 240) > 0);
+  assert.equal(glideMove(current, { ...along, windowId: 'b' }, 240), 0);
+  assert.equal(glideMove(current, { ...along, dock: { kind: 'left', edge: 'left' } }, 240), 0);
+  assert.equal(glideMove({ ...current, windowId: undefined }, along, 240), 0);
+
+  // A nearby glide on the window just used is not penalised like a short hop.
+  const near = { ...along, point: { x: 520, y: 300 } };
+  const recent = [{ kind: 'corner', windowId: 'a' }];
+  const plan = (candidate, place) =>
+    planRoam({
+      candidates: [candidate],
+      current: place,
+      diagonal: 2000,
+      recent,
+      random: () => 0.5,
+    }).order[0];
+  const glided = plan(near, current);
+  assert.ok(glided.glide > 0);
+  assert.equal(glided.weight, 0.8);
+  const hopped = plan({ ...near, windowId: 'b' }, current);
+  assert.equal(hopped.glide, undefined);
+  assert.ok(hopped.weight < glided.weight);
+});
+
+test('glides still never give one window four moves in a row', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const random = seeded(seed);
+    const recent = [];
+    let current;
+    let streak = 0;
+    for (let move = 0; move < 200; move++) {
+      const candidates = desk(random).map((candidate) => ({
+        ...candidate,
+        point: candidate.point ?? { x: candidate.rect.x + candidate.dock.fraction * 400, y: 300 },
+      }));
+      const [choice] = planRoam({ candidates, current, recent: recent.slice(0, 5), random }).order;
+      streak = choice.windowId && choice.windowId === current?.windowId ? streak + 1 : 1;
+      assert.ok(streak < 4, `seed ${seed}, move ${move}`);
+      recent.unshift({ kind: choice.kind, windowId: choice.windowId });
+      current = { windowId: choice.windowId, dock: choice.dock, point: choice.point };
+    }
   }
 });

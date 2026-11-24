@@ -18,6 +18,30 @@ const RECENT_WINDOW = 0.3;
 const SAME_KIND = 0.6;
 const SHORT = 0.2;
 const SHORT_REACH = 0.15;
+const GLIDE = 0.8;
+// Glide speed in sprite widths per second, and its bounds in milliseconds.
+const GLIDE_SPEED = 2.5;
+const GLIDE_MS = [350, 1500];
+
+const onTop = (dock) => dock?.edge === 'top' && (dock.kind === 'seat' || dock.kind === 'corner');
+const mirrored = (dock) => dock?.kind === 'corner' && dock.side === 'right';
+
+/** Glide duration (ms) along the current perch's top edge, or 0 when the move needs a teleport. */
+export function glideMove(current, candidate, scale) {
+  if (
+    !current?.windowId ||
+    candidate.windowId !== current.windowId ||
+    !onTop(current.dock) ||
+    !onTop(candidate.dock) ||
+    mirrored(current.dock) !== mirrored(candidate.dock) ||
+    !current.point ||
+    !candidate.point
+  )
+    return 0;
+  const distance = Math.abs(candidate.point.x - current.point.x);
+  const duration = (1000 * distance) / (GLIDE_SPEED * scale);
+  return Math.round(Math.min(GLIDE_MS[1], Math.max(GLIDE_MS[0], duration)));
+}
 
 /** One or two contacts per surface, so long edges do not crowd out corners. */
 export function roamCandidates(surfaces, random, samples = 2) {
@@ -42,8 +66,10 @@ function weigh(candidate, { from, diagonal, last, streak, preferWindowId }) {
   let weight = (ROAM_WEIGHTS[kind] ?? 0) * (candidate.share ?? 1);
   if (windowId && windowId === preferWindowId) weight *= PREFERRED;
   if (candidate.foreground) weight *= FOREGROUND;
-  if (windowId && last.some((move) => move.windowId === windowId)) weight *= RECENT_WINDOW;
   if (last[0]?.kind === kind) weight *= SAME_KIND;
+  // A glide along the current edge is a small move on the same window by design.
+  if (candidate.glide) return weight * GLIDE;
+  if (windowId && last.some((move) => move.windowId === windowId)) weight *= RECENT_WINDOW;
   if (from && point && Math.hypot(point.x - from.x, point.y - from.y) < diagonal * SHORT_REACH)
     weight *= SHORT;
   return weight;
@@ -51,12 +77,14 @@ function weigh(candidate, { from, diagonal, last, streak, preferWindowId }) {
 
 /**
  * The first `limit` candidates in weighted random order without replacement
- * (Efraimidis–Spirakis keys). recent: successful moves, newest first. A window
- * that took the last three moves sits the next one out; fits() refusals are counted.
+ * (Efraimidis–Spirakis keys). current: { point, windowId, dock } of the perch, if any;
+ * scale: sprite size, for glide durations. recent: successful moves, newest first. A
+ * window that took the last three moves sits the next one out; fits() refusals are counted.
  */
 export function planRoam({
   candidates,
-  from,
+  current,
+  scale = 240,
   diagonal = 0,
   recent = [],
   preferWindowId,
@@ -69,7 +97,7 @@ export function planRoam({
     last.length === 3 && last.every(({ windowId }) => windowId && windowId === last[0].windowId)
       ? last[0].windowId
       : null;
-  const context = { from, diagonal, last, streak, preferWindowId };
+  const context = { from: current?.point, diagonal, last, streak, preferWindowId };
   let unfit = 0;
   const keyed = [];
   for (const candidate of candidates) {
@@ -77,8 +105,10 @@ export function planRoam({
       unfit++;
       continue;
     }
-    const weight = weigh(candidate, context);
-    if (weight > 0) keyed.push({ key: random() ** (1 / weight), choice: { ...candidate, weight } });
+    const glide = glideMove(current, candidate, scale);
+    const choice = glide ? { ...candidate, glide } : candidate;
+    const weight = weigh(choice, context);
+    if (weight > 0) keyed.push({ key: random() ** (1 / weight), choice: { ...choice, weight } });
   }
   keyed.sort((a, b) => b.key - a.key);
   return { order: keyed.slice(0, limit).map(({ choice }) => choice), unfit };
