@@ -87,6 +87,16 @@ export function nearestDisplayAvatarDock(point, { bounds, workArea }, radius) {
   return visibleEdge;
 }
 
+/** Visible pose box around its contact point at a sprite scale; left and top are negative. */
+export function poseExtents(anchor, visible, canvas, scale) {
+  return {
+    left: (visible.x / canvas.width - anchor.x) * scale,
+    right: ((visible.x + visible.width) / canvas.width - anchor.x) * scale,
+    top: (visible.y / canvas.height - anchor.y) * scale,
+    bottom: ((visible.y + visible.height) / canvas.height - anchor.y) * scale,
+  };
+}
+
 export function avatarDockFrame(frames, dock) {
   if (!dock) return undefined;
   const { kind, edge, display } = dock;

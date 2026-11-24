@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 import { randomInt } from 'node:crypto';
+import { poseExtents } from '../avatar-docking.mjs';
 import { COMPANION_DEFAULTS } from '../companion-settings.mjs';
 import { pointInRect, spriteDragHit, spritePressKind } from '../geometry.mjs';
 
@@ -89,10 +90,7 @@ function cursorLanding(cursor, area, scale, anchor) {
 }
 
 function anchoredPoint(seat, area, scale, anchor, visible, canvas) {
-  const left = (visible.x / canvas.width - anchor.x) * scale;
-  const right = ((visible.x + visible.width) / canvas.width - anchor.x) * scale;
-  const top = (visible.y / canvas.height - anchor.y) * scale;
-  const bottom = ((visible.y + visible.height) / canvas.height - anchor.y) * scale;
+  const { left, right, top, bottom } = poseExtents(anchor, visible, canvas, scale);
   return {
     x: Math.max(-left, Math.min(area.width - right, seat.x - area.x)),
     y: Math.max(-top, Math.min(area.height - bottom, seat.y - area.y)),
