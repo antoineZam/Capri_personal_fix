@@ -282,12 +282,13 @@ function loadFrame(url) {
   return loading;
 }
 
-function loadSprite(url) {
+/** A decoded sprite; the departing one also gets its red teleport silhouette, kept once. */
+function loadSprite(url, tinted = false) {
+  if (!tinted) return loadFrame(url).then((image) => ({ image }));
   if (url === spriteUrl && spritePromise) return spritePromise;
   spriteUrl = url;
   spritePromise = (async () => {
     const image = await loadFrame(url);
-
     const tint = document.createElement('canvas');
     tint.width = image.naturalWidth;
     tint.height = image.naturalHeight;
@@ -347,7 +348,7 @@ async function prepare(message) {
   if (!setPresentation(message.presentation ?? 'character')) return false;
   const next = { ...message, anchor };
   prepared = next;
-  const loading = loadSprite(message.spriteUrl);
+  const loading = loadSprite(message.spriteUrl, true);
   try {
     const arriving =
       arrival && message.park !== false && arrival.spriteUrl !== message.spriteUrl
