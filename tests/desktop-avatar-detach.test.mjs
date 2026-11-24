@@ -1042,10 +1042,13 @@ test('a press or a new placement stops a glide where it is', async () => {
   const next = controller.updateFrame(seated, canvas, null, seat(600), { glide: 400 });
   await new Promise((resolve) => setImmediate(resolve));
   assert.ok(controller.glideMotion);
-  controller.queuePlacement({ ...from });
+  assert.equal(await controller.updateFrame(seated, canvas, null, seat(750)), true);
   assert.equal(controller.glideMotion, null);
+  const placed = controller.session.point;
+  assert.equal(placed.x, 750, 'a follow placement during a glide is authoritative');
   glides[1]({ reducedMotion: false });
   assert.equal(await next, false);
+  assert.equal(controller.session.point, placed);
   controller.reset();
 });
 

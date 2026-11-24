@@ -596,7 +596,8 @@ export class AvatarDetach {
   }
 
   queuePlacement(point, previousPoint = point) {
-    this.stopGlide();
+    // Callers pass the authoritative point: a running glide just stops being estimated.
+    this.glideMotion = null;
     const session = this.session,
       contents = this.overlay?.webContents;
     if (!this.available || !contents || this.overlay.isDestroyed()) return;
@@ -696,6 +697,8 @@ export class AvatarDetach {
   async updateFrame(frame, canvas, mask, seat, { glide = 0 } = {}) {
     const session = this.session;
     if (!this.available || !frame.anchor) return false;
+    // Start from where a running glide has brought the sprite.
+    this.stopGlide();
     const anchor = { x: frame.anchor.x / canvas.width, y: frame.anchor.y / canvas.height };
     const { point, area } = session;
     let nextPoint = seat
@@ -873,7 +876,10 @@ export class AvatarDetach {
     this.overlay.showInactive();
     // The native show event and explicit recovery both use the same path.
     this.raiseOverlay();
-    if (hidden && this.session) this.queuePlacement(this.session.point);
+    if (hidden && this.session) {
+      this.stopGlide();
+      this.queuePlacement(this.session.point);
+    }
     if (hidden && this.reply) this.sendReply(this.reply);
     return true;
   }
