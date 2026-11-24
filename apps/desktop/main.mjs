@@ -3909,6 +3909,8 @@ async function initializeDesktop() {
         !avatarRoamingAllowed() ||
         Boolean(perch?.updating || perch?.pending || (perch && !perch.seated)),
     });
+    // Nothing to schedule or follow: keep the 400 ms tick free when roaming is off.
+    if (!perch && !avatarRoaming.enabled) return;
     if (
       avatarDesktopUpdate ||
       !canTeleport() ||
