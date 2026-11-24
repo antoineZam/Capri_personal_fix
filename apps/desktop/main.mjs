@@ -3852,14 +3852,14 @@ async function initializeDesktop() {
         ];
     const display = approved[Math.floor(Math.random() * approved.length)];
     if (!display || !allowed()) return;
-    // Only inspect/perch on apps with an existing screen-observation grant.
-    // Purely geometric random movement does not capture or inspect the screen.
-    if (watching && Math.random() < 0.35) {
+    // Window perch reads window positions only; it never captures or inspects the screen.
+    if ((liveCompanionSettings().avatarRoamWindows || watching) && Math.random() < 0.5) {
       const target = await avatarWindow();
       if (!allowed()) return;
+      const seat = target && windowDock(target, randomSeat);
       if (
-        target &&
-        screen.getDisplayNearestPoint(windowDock(target)).id === display.id &&
+        seat &&
+        screen.getDisplayNearestPoint(seat).id === display.id &&
         (await perchOn(target, watching, randomSeat, undefined, allowed))
       )
         return;
