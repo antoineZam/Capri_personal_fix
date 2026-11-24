@@ -81,16 +81,23 @@ export class DesktopTeleportMenu {
     }
     const session = { token: randomBytes(16).toString('hex') };
     this.session = session;
-    const lost = () => {
-      if (this.session === session) this.hide();
+    // Only a code is kept: compiler and process errors can contain profile paths.
+    const lost = (reason) => {
+      if (this.session !== session) return;
+      this.failure = { at: Date.now(), reason };
+      this.hide();
     };
     try {
       session.helper = await this.prepare(this.root);
-      if (this.session !== session) return;
+    } catch {
+      return lost('build');
+    }
+    if (this.session !== session) return;
+    try {
       session.process = this.start(session.helper, session.token);
-      session.process.once('error', lost);
-      session.process.once('close', lost);
-      session.process.stdin.on('error', lost);
+      session.process.once('error', () => lost('start'));
+      session.process.once('close', () => lost('exit'));
+      session.process.stdin.on('error', () => lost('exit'));
       session.lines = createInterface({ input: session.process.stdout });
       session.lines.on('line', (line) => {
         if (this.session !== session) return;
@@ -98,6 +105,7 @@ export class DesktopTeleportMenu {
           if (line !== 'ready') return;
           clearTimeout(session.timeout);
           session.ready = true;
+          this.failure = null;
           this.register(session);
           this.sendReleaseWatch();
           this.sendWindowWatch();
@@ -129,11 +137,16 @@ export class DesktopTeleportMenu {
             });
         }
       });
-      session.timeout = setTimeout(lost, 4000);
+      session.timeout = setTimeout(() => lost('timeout'), 4000);
       session.timeout.unref();
     } catch {
-      lost();
+      lost('start');
     }
+  }
+
+  /** Whether native following runs, and why the helper last stopped unexpectedly. */
+  status() {
+    return { ready: Boolean(this.session?.ready), failure: this.failure ?? null };
   }
 
   watchRelease(handle, callback) {

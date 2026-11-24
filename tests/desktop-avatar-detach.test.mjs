@@ -1934,6 +1934,40 @@ test('desktop shell registration waits for native coordinates and removes only i
   assert.deepEqual(teleports, [{ x: -40, y: 126 }]);
 });
 
+test('the desktop helper keeps a code for why it stopped unexpectedly', async () => {
+  const process = () => {
+    const child = new EventEmitter();
+    child.stdout = new PassThrough();
+    child.stdin = new PassThrough();
+    return child;
+  };
+  const run = () => ({ status: 1, stdout: '' });
+  let child = process();
+  const menu = new DesktopTeleportMenu('D:\\Capri', () => {}, {
+    run,
+    prepare: () => 'helper.exe',
+    start: () => child,
+  });
+  assert.deepEqual(menu.status(), { ready: false, failure: null });
+  await menu.show('Teleport');
+  child.emit('close', 1);
+  assert.equal(menu.status().failure.reason, 'exit');
+  child = process();
+  await menu.show('Teleport');
+  child.stdout.write('ready\n');
+  assert.deepEqual(menu.status(), { ready: true, failure: null });
+  menu.hide();
+  child.emit('close', 0);
+  assert.equal(menu.status().failure, null, 'a deliberate stop is not a failure');
+  const broken = new DesktopTeleportMenu('D:\\Capri', () => {}, {
+    run,
+    prepare: () => Promise.reject(new Error('csc failed in C:\\Users\\someone')),
+  });
+  await broken.show('Teleport');
+  assert.deepEqual(Object.keys(broken.status().failure).sort(), ['at', 'reason']);
+  assert.equal(broken.status().failure.reason, 'build');
+});
+
 test('invalid or undecodable artwork leaves the portrait attached', async () => {
   const { controller, phases, overlays } = fixture({ prepare: () => false });
   await assert.rejects(controller.leave(geometry, undefined, canvas), /artwork/);
