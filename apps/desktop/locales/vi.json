@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Cho phép Capri tự di chuyển",
     "Time between moves": "Khoảng cách thời gian giữa các lần di chuyển",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Di chuyển ngẫu nhiên không cần quyền truy cập màn hình. Tạm dừng khi bạn nói, gõ hoặc tương tác với Capri.",
+    "Let Capri sit on app windows": "Cho phép Capri ngồi trên cửa sổ ứng dụng",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Chỉ dùng vị trí của cửa sổ. Capri không bao giờ chụp màn hình hay đọc tiêu đề hoặc nội dung cửa sổ.",
     "Change local model": "Đổi mô hình cục bộ",
     "Change device": "Đổi thiết bị",
     "Use API": "Dùng API",

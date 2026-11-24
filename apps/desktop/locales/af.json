@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Laat Capri op haar eie rondbeweeg",
     "Time between moves": "Tyd tussen bewegings",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Willekeurige beweging benodig geen skermtoegang nie. Dit onderbreek terwyl jy praat, tik of met Capri omgaan.",
+    "Let Capri sit on app windows": "Laat Capri op programvensters sit",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Gebruik slegs vensterposisies. Capri neem nooit die skerm op en lees nooit venstertitels of -inhoud nie.",
     "Change local model": "Verander plaaslike model",
     "Change device": "Verander toestel",
     "Use API": "Gebruik API",

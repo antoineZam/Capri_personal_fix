@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Capri önállóan mozoghat",
     "Time between moves": "Mozgások közötti idő",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "A véletlenszerű mozgáshoz nem kell képernyőhozzáférés. Szünetel, amíg beszélsz, gépelsz vagy kapcsolatba lépsz Caprival.",
+    "Let Capri sit on app windows": "Capri leülhet az alkalmazások ablakaira",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Csak az ablakok helyzetét használja. Capri soha nem rögzíti a képernyőt, és nem olvassa az ablakok címét vagy tartalmát.",
     "Change local model": "Helyi modell váltása",
     "Change device": "Eszközváltás",
     "Use API": "API használata",

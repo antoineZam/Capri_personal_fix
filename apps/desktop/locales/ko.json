@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Capri가 스스로 돌아다니도록 허용",
     "Time between moves": "이동 간격",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "무작위 이동에는 화면 접근 권한이 필요하지 않습니다. 말하거나 입력하거나 Capri와 상호작용하는 동안 일시 중지됩니다.",
+    "Let Capri sit on app windows": "Capri가 앱 창 위에 앉도록 허용",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "창 위치만 사용합니다. Capri는 화면을 캡처하거나 창 제목이나 내용을 읽지 않습니다.",
     "Change local model": "로컬 모델 변경",
     "Change device": "장치 변경",
     "Use API": "API 사용",

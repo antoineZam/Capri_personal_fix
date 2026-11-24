@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Να κινείται η Capri μόνη της",
     "Time between moves": "Διάστημα μεταξύ κινήσεων",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Η τυχαία κίνηση δεν χρειάζεται πρόσβαση στην οθόνη. Διακόπτεται όσο μιλάτε, πληκτρολογείτε ή αλληλεπιδράτε με την Capri.",
+    "Let Capri sit on app windows": "Να κάθεται η Capri στα παράθυρα των εφαρμογών",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Χρησιμοποιεί μόνο τις θέσεις των παραθύρων. Η Capri δεν καταγράφει ποτέ την οθόνη και δεν διαβάζει τίτλους ή περιεχόμενο παραθύρων.",
     "Change local model": "Αλλαγή τοπικού μοντέλου",
     "Change device": "Αλλαγή συσκευής",
     "Use API": "Χρήση API",

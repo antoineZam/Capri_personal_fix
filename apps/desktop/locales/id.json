@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Izinkan Capri bergerak sendiri",
     "Time between moves": "Jeda antarperpindahan",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Gerakan acak tidak memerlukan akses layar. Dijeda saat Anda berbicara, mengetik, atau berinteraksi dengan Capri.",
+    "Let Capri sit on app windows": "Izinkan Capri duduk di jendela aplikasi",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Hanya menggunakan posisi jendela. Capri tidak pernah merekam layar atau membaca judul maupun isi jendela.",
     "Change local model": "Ganti model lokal",
     "Change device": "Ganti perangkat",
     "Use API": "Gunakan API",

@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Разрешить Capri перемещаться самостоятельно",
     "Time between moves": "Интервал между перемещениями",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Для случайных перемещений не нужен доступ к экрану. Они приостанавливаются, пока вы говорите, печатаете или взаимодействуете с Capri.",
+    "Let Capri sit on app windows": "Разрешить Capri садиться на окна приложений",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Используются только положения окон. Capri никогда не снимает экран и не читает заголовки или содержимое окон.",
     "Change local model": "Сменить локальную модель",
     "Change device": "Сменить устройство",
     "Use API": "Использовать API",

@@ -188,6 +188,8 @@ export class CompanionPanel {
           <label class="drag-lightning-control" for="avatar-roam-interval">Time between moves <output id="avatar-roam-interval-value" data-untranslated></output></label>
           <input id="avatar-roam-interval" type="range" min="30" max="1800" step="30" value="120">
           <p class="settings-help">Random movement needs no screen access. Pauses while you talk, type or interact with Capri.</p>
+          <label><input id="avatar-roam-windows" type="checkbox">Let Capri sit on app windows</label>
+          <p class="settings-help">Uses window positions only. Capri never captures the screen or reads window titles or contents.</p>
           <h3>Teleport effects</h3>
           ${teleportSliders
             .map(
@@ -339,7 +341,8 @@ export class CompanionPanel {
     this.get('wake-sound').addEventListener('change', this.wakeResponseControls);
     this.roamingControls = () => {
       const control = this.get('avatar-roam-interval');
-      control.disabled = !this.get('avatar-roaming').checked;
+      control.disabled = this.get('avatar-roam-windows').disabled =
+        !this.get('avatar-roaming').checked;
       const seconds = control.valueAsNumber;
       this.get('avatar-roam-interval-value').textContent =
         seconds < 60
@@ -466,6 +469,7 @@ export class CompanionPanel {
       avatarDragTether: this.get('avatar-drag-tether').checked,
       avatarRoaming: this.get('avatar-roaming').checked,
       avatarRoamIntervalSeconds: this.get('avatar-roam-interval').valueAsNumber,
+      avatarRoamWindows: this.get('avatar-roam-windows').checked,
       ...Object.fromEntries(
         dragLightningSliders.map(({ id, key }) => [key, this.get(id).valueAsNumber]),
       ),
@@ -625,6 +629,7 @@ export class CompanionPanel {
     this.get('avatar-drag-tether').checked = value.avatarDragTether !== false;
     this.get('avatar-roaming').checked = value.avatarRoaming === true;
     this.get('avatar-roam-interval').value = value.avatarRoamIntervalSeconds ?? 120;
+    this.get('avatar-roam-windows').checked = value.avatarRoamWindows === true;
     this.roamingControls();
     for (const { id, key, initial } of dragLightningSliders)
       this.get(id).value = value[key] ?? initial;
@@ -693,6 +698,7 @@ export class CompanionPanel {
         'avatar-drag-tether',
         'avatar-roaming',
         'avatar-roam-interval',
+        'avatar-roam-windows',
         ...dragLightningSliders.map(({ id }) => id),
         'avatar-snap-radius',
         'avatar-tap-gap',

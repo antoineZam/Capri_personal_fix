@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Hayaang gumalaw si Capri nang mag-isa",
     "Time between moves": "Agwat sa pagitan ng mga galaw",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Hindi kailangan ng access sa screen para sa random na paggalaw. Humihinto ito habang nagsasalita, nagta-type o nakikipag-ugnayan ka kay Capri.",
+    "Let Capri sit on app windows": "Hayaang umupo si Capri sa mga window ng app",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Posisyon lang ng mga window ang ginagamit. Hindi kailanman kinukunan ni Capri ang screen o binabasa ang mga pamagat o nilalaman ng mga window.",
     "Change local model": "Palitan ang lokal na modelo",
     "Change device": "Palitan ang device",
     "Use API": "Gamitin ang API",

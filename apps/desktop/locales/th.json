@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "อนุญาตให้ Capri เคลื่อนที่เอง",
     "Time between moves": "ช่วงเวลาระหว่างการเคลื่อนที่",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "การเคลื่อนที่แบบสุ่มไม่ต้องเข้าถึงหน้าจอ และจะหยุดชั่วคราวเมื่อคุณพูด พิมพ์ หรือโต้ตอบกับ Capri",
+    "Let Capri sit on app windows": "อนุญาตให้ Capri นั่งบนหน้าต่างแอป",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "ใช้เฉพาะตำแหน่งของหน้าต่าง Capri ไม่เคยจับภาพหน้าจอหรืออ่านชื่อหรือเนื้อหาของหน้าต่าง",
     "Change local model": "เปลี่ยนโมเดลในเครื่อง",
     "Change device": "เปลี่ยนอุปกรณ์",
     "Use API": "ใช้ API",

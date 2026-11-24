@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Leyfa Capri að hreyfa sig sjálf",
     "Time between moves": "Tími milli hreyfinga",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Tilviljanakennd hreyfing þarf ekki skjáaðgang. Hún stöðvast meðan þú talar, skrifar eða átt samskipti við Capri.",
+    "Let Capri sit on app windows": "Leyfa Capri að sitja á forritagluggum",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Notar aðeins staðsetningu glugga. Capri tekur aldrei upp skjáinn og les aldrei titla eða innihald glugga.",
     "Change local model": "Skipta um staðbundið líkan",
     "Change device": "Skipta um tæki",
     "Use API": "Nota API",

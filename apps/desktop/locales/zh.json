@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "允许Capri自主移动",
     "Time between moves": "移动间隔",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "随机移动不需要屏幕访问权限。在您说话、打字或与Capri互动时会暂停。",
+    "Let Capri sit on app windows": "允许Capri坐在应用窗口上",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "仅使用窗口位置。Capri绝不会截取屏幕，也不会读取窗口标题或内容。",
     "Change local model": "更换本地模型",
     "Change device": "更换设备",
     "Use API": "使用API",

@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Luba Capril iseseisvalt liikuda",
     "Time between moves": "Liikumiste vaheline aeg",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Juhuslik liikumine ei vaja ekraanile juurdepääsu. See peatub, kui räägid, kirjutad või suhtled Capriga.",
+    "Let Capri sit on app windows": "Luba Capril rakenduste akendel istuda",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Kasutab ainult akende asukohti. Capri ei salvesta kunagi ekraani ega loe akende pealkirju ega sisu.",
     "Change local model": "Vaheta kohalikku mudelit",
     "Change device": "Vaheta seadet",
     "Use API": "Kasuta API-t",

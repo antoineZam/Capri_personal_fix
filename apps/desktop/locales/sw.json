@@ -1997,6 +1997,8 @@
     "Let Capri move around on her own": "Ruhusu Capri kutembea mwenyewe",
     "Time between moves": "Muda kati ya miondoko",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Mwendo wa nasibu hauhitaji ufikiaji wa skrini. Husitishwa unapozungumza, kuandika au kuwasiliana na Capri.",
+    "Let Capri sit on app windows": "Ruhusu Capri kukaa juu ya madirisha ya programu",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Hutumia nafasi za madirisha pekee. Capri kamwe hanasi skrini wala hasomi vichwa au maudhui ya madirisha.",
     "Change local model": "Badilisha modeli ya ndani",
     "Change device": "Badilisha kifaa",
     "Use API": "Tumia API",

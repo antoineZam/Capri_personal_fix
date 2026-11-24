@@ -1995,6 +1995,8 @@
     "Let Capri move around on her own": "Let Capri move around on her own",
     "Time between moves": "Time between moves",
     "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.": "Random movement needs no screen access. Pauses while you talk, type or interact with Capri.",
+    "Let Capri sit on app windows": "Let Capri sit on app windows",
+    "Uses window positions only. Capri never captures the screen or reads window titles or contents.": "Uses window positions only. Capri never captures the screen or reads window titles or contents.",
     "Change local model": "Change local model",
     "Change device": "Change device",
     "Use API": "Use API",
