@@ -701,6 +701,8 @@ async function initializeDesktop() {
     avatarRoamCapture,
     avatarDesktopUpdate = false;
   const avatarRoaming = new AvatarRoaming();
+  // Without the native follower, a perch re-checks its window at this pace.
+  const perchPollMs = 1800;
   // Bounded restarts of the native perch follower after it failed (5, 10, 20 s apart).
   let helperRetryAt = 0,
     helperRetries = 0;
@@ -3668,6 +3670,7 @@ async function initializeDesktop() {
     if (!avatarDetach.available) return;
     if (teleport) {
       avatarRoaming.postpone(liveCompanionSettings(), 60000);
+      if (await relocateAvatar(attempt).catch(() => false)) return;
       if (
         await avatarDetach
           .hop(undefined, undefined, avatarTravelPose(freeFrame(), true))
@@ -3751,7 +3754,14 @@ async function initializeDesktop() {
       startedAtTicks: target.startedAtTicks,
     };
     clearPerch();
-    perch = { record, lease, dock, nextCheck: Date.now() + 1800, seated: false, seatPoint: seat };
+    perch = {
+      record,
+      lease,
+      dock,
+      nextCheck: Date.now() + perchPollMs,
+      seated: false,
+      seatPoint: seat,
+    };
     const attempt = perch;
     const allowed = () =>
       perch === attempt && stillAllowed() && (!lease || capturePolicy.capture === lease);
@@ -3940,9 +3950,17 @@ async function initializeDesktop() {
   }
 
   /** Plans one move over the display's open surfaces and tries the best few in order. */
-  async function moveAvatar({ display, windows, lease = null, preferWindowId, allowed, reason }) {
+  async function moveAvatar({
+    display,
+    windows,
+    lease = null,
+    preferWindowId,
+    exclude,
+    allowed,
+    reason,
+    fromPerch = Boolean(perch),
+  }) {
     const started = performance.now();
-    const fromPerch = Boolean(perch);
     const companion = window.isVisible()
       ? [
           screen.dipToScreenRect(
@@ -3951,8 +3969,11 @@ async function initializeDesktop() {
           ),
         ]
       : [];
-    const surfaces =
-      windows && buildTerrain(windows, [terrainArea(display)], { occluders: companion });
+    // An excluded window still hides what is behind it; it just offers no surface.
+    const open = windows?.map((entry) =>
+      entry.windowId === exclude ? { ...entry, perch: false } : entry,
+    );
+    const surfaces = open && buildTerrain(open, [terrainArea(display)], { occluders: companion });
     const candidates = roamCandidates(surfaces, Math.random)
       .map((candidate) =>
         candidate.windowId
@@ -3992,6 +4013,34 @@ async function initializeDesktop() {
       failed = true;
     }
     return null;
+  }
+
+  /** A lost perch leaves for a planned surface, when windows are allowed, not a random spot. */
+  async function relocateAvatar(attempt) {
+    const settings = liveCompanionSettings();
+    if (!settings.avatarRoaming || !settings.avatarRoamWindows) return false;
+    // finishPerch() postponed roaming just before; any later interaction bumps the revision.
+    const revision = avatarRoaming.revision;
+    const allowed = () =>
+      avatarRoaming.current(liveCompanionSettings(), revision) &&
+      canTeleport() &&
+      !avatarDetach.press &&
+      !pointer?.avatarPress &&
+      !pointer?.drag;
+    const windows = (await desktopSurfaces()) ?? [];
+    if (!allowed()) return false;
+    const display =
+      attempt.display ??
+      screen.getDisplayNearestPoint(avatarDetach.desktopPoint ?? attempt.seatPoint);
+    const moved = await moveAvatar({
+      display,
+      windows,
+      exclude: attempt.record?.windowId,
+      allowed,
+      reason: 'relocate',
+      fromPerch: true,
+    });
+    return Boolean(moved);
   }
 
   async function roamDesktopAvatar(watching, revision) {
@@ -4087,7 +4136,7 @@ async function initializeDesktop() {
     if (now < current.nextCheck) return;
     avatarDesktopUpdate = true;
     try {
-      current.nextCheck = now + 1800;
+      current.nextCheck = now + perchPollMs;
       if (current.lease && current.lease !== watching) {
         await finishPerch(current);
         return;
