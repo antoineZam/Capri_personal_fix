@@ -101,6 +101,10 @@ export class DeveloperPanel {
         <p id="developer-log-status" class="settings-help" role="status"></p>
         <pre id="developer-log-content" tabindex="0" aria-label="Technical log" data-untranslated></pre>
         <p class="settings-help" data-inline-help>Only the latest log tail is shown. Private text and unknown fields are omitted. Nothing is uploaded.</p>
+      </section>
+      <section class="developer-section" id="developer-roaming-section" aria-labelledby="developer-roaming-title" hidden>
+        <h3 id="developer-roaming-title">Desktop roaming</h3>
+        <pre id="developer-roaming" tabindex="0" data-untranslated></pre>
       </section>`;
     host.append(this.panel);
     this.get('refresh').onclick = () => void this.refresh();
@@ -160,6 +164,27 @@ export class DeveloperPanel {
           maximumFractionDigits: 1,
         }).format(value)
       : '—';
+  }
+  renderRoaming(decisions) {
+    this.get('roaming-section').hidden = !decisions.length;
+    const text = decisions
+      .map(({ at, reason, kind, result, weight, windowId, unfit, ms }) =>
+        [
+          this.time(at),
+          reason,
+          kind,
+          result,
+          'w=' + weight,
+          windowId && '#' + windowId,
+          'unfit=' + unfit,
+          ms + ' ms',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      )
+      .join('\n');
+    const view = this.get('roaming');
+    if (view.textContent !== text) view.textContent = text;
   }
   time(value) {
     return new Date(value).toLocaleTimeString(this.ui.language ?? 'en');
@@ -224,6 +249,7 @@ export class DeveloperPanel {
     this.get('empty').hidden = Boolean(this.value.turns.length);
     this.get('turn-details').hidden = !this.value.turns.length;
     this.renderTurn();
+    this.renderRoaming(this.value.roaming ?? []);
     this.options(
       'log',
       this.value.logs.map((log) => ({

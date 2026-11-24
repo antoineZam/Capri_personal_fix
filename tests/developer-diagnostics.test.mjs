@@ -167,6 +167,22 @@ test('technical log viewer and timeline never return dialogue, credentials, or a
   await assert.rejects(service.read('../config/core.local.json'), /Invalid log selection/);
   await assert.rejects(service.read('a'.repeat(24)), /no longer available/);
 });
+test('snapshots include the roaming decision log from its provider', async () => {
+  const { root } = await fixture();
+  let calls = 0;
+  const decisions = [{ at: 1, reason: 'roam', kind: 'corner', result: 'ok', windowId: '42' }];
+  const service = new DeveloperDiagnostics({
+    root,
+    roaming: () => {
+      calls++;
+      return decisions;
+    },
+  });
+  assert.deepEqual((await service.snapshot()).roaming, decisions);
+  await service.snapshot();
+  assert.equal(calls, 1, 'cached snapshots do not ask again');
+  assert.deepEqual((await (await fixture()).service.snapshot()).roaming, []);
+});
 test('linked files and linked directories cannot add external content to the log catalog', async (t) => {
   const { root, service } = await fixture();
   const outside = path.join(root, 'outside.txt');

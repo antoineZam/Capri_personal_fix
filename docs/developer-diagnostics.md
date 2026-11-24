@@ -14,6 +14,11 @@ technical logs. It does not start a model or make an external request.
 - **Logs** lists runtime, updater and recent installer journals. The viewer reads
   at most the last 64 KiB of a selected file and removes private prose/unknown
   fields. **Open logs folder** opens the installation's runtime logs in Explorer.
+- **Desktop roaming** appears once Capri has roamed since she started. It lists
+  the last 20 roaming decisions: time, reason, surface kind (seat, corner, side
+  hang, underside, taskbar floor or free point), result, planner weight, window
+  id, how many surfaces were refused because the pose would not fit, and how
+  long the decision took. Window titles are never shown.
 - **Live refresh** updates every three seconds while this category and Settings
   are visible. Switching categories, hiding Settings or hiding the document
   suspends refresh. Uncheck it to inspect a stable snapshot.
