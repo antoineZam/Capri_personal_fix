@@ -1415,12 +1415,15 @@ export class AvatarDetach {
     };
   }
 
-  async hop(cursor, grabOffset, appearance) {
+  async hop(cursor, grabOffset, appearance, { variant } = {}) {
     if (!this.available) return false;
     const { area, point, anchor, seen } = this.session;
     if (cursor) {
       if (!isCursor(cursor)) return false;
-      const destination = this.cursorDestination(cursor, this.session, grabOffset, appearance);
+      const destination = {
+        ...this.cursorDestination(cursor, this.session, grabOffset, appearance),
+        ...(variant && { variant }),
+      };
       return this.travel('teleporting', point, destination.to, destination);
     }
     if (appearance) {
@@ -1517,6 +1520,7 @@ export class AvatarDetach {
               spriteUrl: session.spriteUrl,
               ...(session.mirror && { mirror: true }),
               ...(destination.arrival && { arrival: destination.arrival }),
+              ...(destination.variant && { variant: destination.variant }),
               effects,
               crossing,
               park: overlay === target && phase !== 'returning',

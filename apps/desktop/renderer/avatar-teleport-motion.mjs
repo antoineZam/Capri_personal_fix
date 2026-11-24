@@ -9,6 +9,15 @@ const headPositions = [0.11, 0.19, 0.3, 0.42, 0.55, 0.67, 0.79, 0.9, 1];
 const strikeReach = [0.15, 0.34, 0.26, 0.19, 0.11, 0.055];
 const boltOnlyFrames = arrivalStart + strikeReach.length;
 const red = '#ff003d';
+// Nearby roaming moves replay the same choreography faster, with a smaller charge.
+const variants = Object.freeze({
+  full: Object.freeze({ pace: 1, charge: 1 }),
+  short: Object.freeze({ pace: 1.6, charge: 0.6 }),
+});
+
+export function teleportVariant(name = 'full') {
+  return Object.hasOwn(variants, name) ? variants[name] : null;
+}
 const filament = '#cc123c';
 
 function sample(values, at) {
@@ -497,6 +506,7 @@ export function prepareTeleportMotion({
   bounds,
   reducedFlash = false,
   effects,
+  variant,
 }) {
   const departureScale = from.scale ?? scale;
   const arrivalScale = to.scale ?? scale;
@@ -512,7 +522,7 @@ export function prepareTeleportMotion({
   };
   // Build up the bend, width and branches over two sprite widths of travel.
   const travelStrength = Math.min(1, axis.length / (2 * scale));
-  const energy = 0.38 + profile.intensity * 0.88;
+  const energy = (0.38 + profile.intensity * 0.88) * (teleportVariant(variant)?.charge ?? 1);
   const boltScale = scale * travelStrength * energy;
   const amplitude =
     Math.min(scale * 0.53, axis.length * 0.31) *

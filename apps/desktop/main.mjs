@@ -3456,10 +3456,10 @@ async function initializeDesktop() {
     );
   }
 
-  async function launchAvatarTo(cursor, stillAllowed = () => true, grabPoint, arrival) {
+  async function launchAvatarTo(cursor, stillAllowed = () => true, grabPoint, arrival, variant) {
     if (!canTeleport() || !stillAllowed()) return;
     const detach = avatarDetach;
-    if (detach.available) return detach.hop(cursor, undefined, arrival);
+    if (detach.available) return detach.hop(cursor, undefined, arrival, { variant });
     if (detach.phase !== 'attached' || window.webContents.getURL() !== rendererUrl) return;
     if (windowFootprint) clampWindow({ footprint: null });
     const geometry = await window.webContents.executeJavaScript(
@@ -3502,13 +3502,13 @@ async function initializeDesktop() {
     return desktopFrame ?? frameIds.get('neutral');
   }
 
-  async function hopFree(point, { allowed, grabOffset, fromPerch = Boolean(perch) } = {}) {
+  async function hopFree(point, { allowed, grabOffset, fromPerch = Boolean(perch), variant } = {}) {
     const arrival = fromPerch && avatarTravelPose(freeFrame(), true);
     clearPerch();
     try {
       return grabOffset
         ? canTeleport() && (await avatarDetach.hop(point, grabOffset, arrival))
-        : await launchAvatarTo(point, allowed, undefined, arrival);
+        : await launchAvatarTo(point, allowed, undefined, arrival, variant);
     } finally {
       if (fromPerch && !perch && desktopFrame && avatarDetach?.available)
         void avatarDetach
@@ -3786,6 +3786,7 @@ async function initializeDesktop() {
     dock = defaultSeat,
     grab,
     stillAllowed = () => true,
+    { variant } = {},
   ) {
     const arrival = dockArrivalFrame(dock);
     if (
@@ -3822,6 +3823,7 @@ async function initializeDesktop() {
           allowed,
           grab,
           avatarTravelPose(arrival, false, dock.display),
+          variant,
         )) ||
         !allowed()
       )
@@ -3997,12 +3999,15 @@ async function initializeDesktop() {
     return approved[Math.floor(Math.random() * approved.length)];
   }
 
-  async function roamTo(choice, { lease, allowed, fromPerch }) {
-    if (choice.kind === 'free') return hopFree(choice.point, { allowed, fromPerch });
-    if (!choice.windowId) return perchOn(null, null, choice.dock, undefined, allowed);
+  async function roamTo(choice, { lease, allowed, fromPerch, variant }) {
+    if (choice.kind === 'free') return hopFree(choice.point, { allowed, fromPerch, variant });
+    if (!choice.windowId) return perchOn(null, null, choice.dock, undefined, allowed, { variant });
     // Process identity is only checked for the window actually chosen.
     const target = await avatarWindow({ windowId: choice.windowId }).catch(() => null);
-    return Boolean(target && allowed()) && perchOn(target, lease, choice.dock, undefined, allowed);
+    return (
+      Boolean(target && allowed()) &&
+      perchOn(target, lease, choice.dock, undefined, allowed, { variant })
+    );
   }
 
   /** Plans one move over the display's open surfaces and tries the best few in order. */
@@ -4043,10 +4048,12 @@ async function initializeDesktop() {
       .filter(({ point }) => screen.getDisplayNearestPoint(point).id === display.id);
     const free = freeRoamPoint(display, fromPerch);
     if (free) candidates.push({ kind: 'free', point: free });
+    const from = avatarDetach.desktopPoint;
+    const diagonal = Math.hypot(display.workArea.width, display.workArea.height);
     const { order, unfit } = planRoam({
       candidates,
-      from: avatarDetach.desktopPoint,
-      diagonal: Math.hypot(display.workArea.width, display.workArea.height),
+      from,
+      diagonal,
       recent: avatarRoaming.recent(),
       preferWindowId,
       fits: (candidate) =>
@@ -4055,7 +4062,11 @@ async function initializeDesktop() {
     let failed = false;
     for (const choice of order) {
       if (!allowed()) break;
-      const moved = await roamTo(choice, { lease, allowed, fromPerch }).catch(() => false);
+      // Nearby destinations get the quicker, smaller teleport.
+      const near =
+        from && Math.hypot(choice.point.x - from.x, choice.point.y - from.y) < diagonal / 4;
+      const variant = near ? 'short' : undefined;
+      const moved = await roamTo(choice, { lease, allowed, fromPerch, variant }).catch(() => false);
       avatarRoaming.record({
         reason,
         kind: choice.kind,

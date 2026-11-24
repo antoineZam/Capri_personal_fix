@@ -24,6 +24,7 @@ import {
   draw,
   frames,
   prepareTeleportMotion,
+  teleportVariant,
   teleportViewport,
   transitStart,
 } from '../apps/desktop/renderer/avatar-teleport-motion.mjs';
@@ -408,6 +409,31 @@ test('mirrored dock poses reach the overlay and clear when the pose turns back',
   assert.equal(commands.at(-1).mirror, true, 'the mirrored departure keeps its orientation');
   assert.equal('mirror' in commands.at(-1).arrival, false);
   assert.equal(controller.session.mirror, false);
+  controller.reset();
+});
+
+test('nearby roaming hops use a quicker, smaller teleport', async () => {
+  assert.equal(teleportVariant('x'), null);
+  assert.equal(teleportVariant(), teleportVariant('full'));
+  const short = teleportVariant('short');
+  assert.ok(short.pace > 1 && short.charge < 1);
+  const route = {
+    from: { x: 100, y: 500, scale: 240 },
+    to: { x: 700, y: 500, scale: 240 },
+    seed: 7,
+    scale: 240,
+  };
+  assert.ok(
+    prepareTeleportMotion({ ...route, variant: 'short' }).boltScale <
+      prepareTeleportMotion(route).boltScale,
+  );
+  const { controller, commands } = fixture();
+  assert.equal(await controller.leave(geometry, sprite, canvas), true);
+  assert.equal(await controller.hop({ x: area.x + 400, y: area.y + 400 }), true);
+  assert.equal('variant' in commands.at(-1), false);
+  const cursor = { x: area.x + 600, y: area.y + 400 };
+  assert.equal(await controller.hop(cursor, undefined, undefined, { variant: 'short' }), true);
+  assert.equal(commands.at(-1).variant, 'short');
   controller.reset();
 });
 

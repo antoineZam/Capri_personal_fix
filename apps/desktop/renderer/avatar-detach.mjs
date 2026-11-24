@@ -7,6 +7,7 @@ import {
   frames,
   arrivalStart,
   prepareTeleportMotion,
+  teleportVariant,
   teleportViewport,
 } from './avatar-teleport-motion.mjs';
 import { AvatarHeadpat } from './avatar-headpat.mjs';
@@ -335,6 +336,7 @@ async function prepare(message) {
     !Number.isInteger(seed) ||
     !validAnchor(anchor) ||
     !spriteAddress.test(message.spriteUrl) ||
+    !teleportVariant(message.variant) ||
     ![undefined, true, false].includes(message.mirror) ||
     (arrival &&
       (!validAnchor(arrival.anchor) ||
@@ -1131,14 +1133,16 @@ async function play(startAt) {
   const delay = Number.isFinite(startAt) ? Math.min(100, startAt - Date.now()) : 0;
   const started = performance.now() + delay;
   const stopAt = flight.park === false ? boltOnlyFrames : frames - 1;
+  // A short hop plays the canonical frames faster rather than a separate choreography.
+  const frameAt = (now) => ((now - started) * fps * teleportVariant(run.variant).pace) / 1000;
   resizeEffect();
-  flight.frame = Math.max(0, ((performance.now() - started) * fps) / 1000);
+  flight.frame = Math.max(0, frameAt(performance.now()));
   if (flight.frame >= stopAt) return complete(run);
   effect.hidden = false;
   paint();
   function step(now) {
     if (flight !== run || run.completed) return;
-    const next = ((now - started) * fps) / 1000;
+    const next = frameAt(now);
     if (next >= stopAt || motionPreference.matches) {
       complete(run);
       return;
