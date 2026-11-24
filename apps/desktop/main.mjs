@@ -3847,11 +3847,13 @@ async function initializeDesktop() {
             onChange: changed,
           });
           attempt.localTracking = Boolean(localWatch);
-          // With app windows allowed, the helper also reports windows covering the pose.
+          // While roaming may use app windows, the helper also reports windows covering the pose.
           const near = screen.getDisplayNearestPoint(seat);
-          const band = liveCompanionSettings().avatarRoamWindows
-            ? Math.ceil(avatarDetach.fitScale(near.workArea) * (near.scaleFactor || 1))
-            : 0;
+          const settings = liveCompanionSettings();
+          const band =
+            settings.avatarRoaming && settings.avatarRoamWindows
+              ? Math.ceil(avatarDetach.fitScale(near.workArea) * (near.scaleFactor || 1))
+              : 0;
           attempt.stopTracking =
             localWatch ?? desktopTeleportMenu?.watchWindow(record, changed, band);
         }
