@@ -701,6 +701,9 @@ async function initializeDesktop() {
     avatarRoamCapture,
     avatarDesktopUpdate = false;
   const avatarRoaming = new AvatarRoaming();
+  // Bounded restarts of the native perch follower after it failed (5, 10, 20 s apart).
+  let helperRetryAt = 0,
+    helperRetries = 0;
   let settingsHost;
   let settingsPreview = {};
   const liveCompanionSettings = () => settingsPreview.companion ?? companionPreferences.value;
@@ -3769,6 +3772,7 @@ async function initializeDesktop() {
           const changed = (value) => {
             if (perch !== attempt || attempt.targetLost) return;
             attempt.lastNativeUpdate = Date.now();
+            helperRetries = 0;
             if (value.state === 'closed' || value.state === 'hidden') attempt.targetLost = true;
             else attempt.pending = value;
             // The local Settings tracker emits its first state while being installed.
@@ -4067,7 +4071,20 @@ async function initializeDesktop() {
       return;
     }
     const current = perch;
-    if (!current.record || !current.seated || now < current.nextCheck) return;
+    if (!current.record || !current.seated) return;
+    if (
+      desktopTeleportMenu?.failure &&
+      !desktopTeleportMenu.session &&
+      !current.localTracking &&
+      (window.isVisible() || avatarOnly) &&
+      now >= helperRetryAt &&
+      helperRetries < 3
+    ) {
+      // Polling keeps the perch alive meanwhile; the restarted helper resumes the watch.
+      helperRetryAt = now + 5000 * 2 ** helperRetries++;
+      showDesktopTeleportMenu();
+    }
+    if (now < current.nextCheck) return;
     avatarDesktopUpdate = true;
     try {
       current.nextCheck = now + 1800;
