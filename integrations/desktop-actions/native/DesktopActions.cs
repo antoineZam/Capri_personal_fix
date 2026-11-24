@@ -1199,6 +1199,11 @@ class DesktopActions {
                         distance=Math.Min(Math.Abs(nearY-rect.top),Math.Abs(nearY-rect.bottom));
                     if(nearY>=rect.top+insetY&&nearY<=rect.bottom-insetY)
                         distance=Math.Min(distance,Math.Min(Math.Abs(nearX-rect.left),Math.Abs(nearX-rect.right)));
+                    // Top corners, weighted like nearestAvatarDock() so a drop near one still finds the window.
+                    foreach(var cornerX in new[]{rect.left,rect.right}){
+                        long dx=nearX-cornerX,dy=nearY-rect.top;
+                        distance=Math.Min(distance,(int)(Math.Sqrt(dx*dx+dy*dy)*0.6));
+                    }
                     if(distance>radius||distance>=bestDistance)return true;
                 }
                 if(!AvatarTarget(window,rect))return true;

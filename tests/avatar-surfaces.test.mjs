@@ -45,6 +45,7 @@ class SurfacesHarness {
             var output = new Dictionary<string, object> {
                 { "surfaces", call("AvatarSurfaces", new Dictionary<string, object> { { "ignoreProcessId", "0" } }) },
                 { "window", call("AvatarWindow", new Dictionary<string, object> { { "windowId", id(a) }, { "ignoreProcessId", "0" } }) },
+                { "corner", call("AvatarWindow", new Dictionary<string, object> { { "nearX", "190" }, { "nearY", "190" }, { "nearRadius", "36" }, { "ignoreProcessId", "0" } }) },
                 { "ids", new Dictionary<string, object> { { "a", id(a) }, { "b", id(b) }, { "tool", id(tool) }, { "through", id(through) }, { "small", id(small) } } },
             };
             Console.WriteLine(new JavaScriptSerializer().Serialize(output));
@@ -54,7 +55,7 @@ class SurfacesHarness {
 }`;
 
 test(
-  'window surfaces list geometry only, front to back, with perch flags',
+  'window surfaces list geometry only, front to back, with perch flags; corners are near',
   { skip: process.platform !== 'win32', timeout: 60000 },
   () => {
     const parent = path.resolve('.runtime/test-data/avatar-surfaces');
@@ -97,7 +98,7 @@ test(
     compile(source, executable);
     const run = spawnSync(executable, [library], { encoding: 'utf8', timeout: 20000 });
     assert.equal(run.status, 0, run.stderr);
-    const { surfaces, window, ids } = JSON.parse(run.stdout);
+    const { surfaces, window, corner, ids } = JSON.parse(run.stdout);
 
     assert.equal(surfaces.ok, true);
     assert.ok(surfaces.windows.length <= 32);
@@ -123,6 +124,7 @@ test(
     assert.equal(surfaces.windows[index('small')]?.perch, false);
     assert.equal(index('through'), -1, 'click-through overlays are omitted');
 
+    assert.equal(corner.windowId, ids.a, 'a drop just outside the top-left corner finds it');
     assert.equal(window.windowId, ids.a);
     assert.deepEqual(
       [window.x, window.y, window.width, window.height],
