@@ -15,9 +15,11 @@ const on = { avatarRoaming: true, avatarRoamIntervalSeconds: 30 };
 test('old settings upgrade to opt-in roaming; frequency is bounded and persists', (t) => {
   const defaults = validateCompanionSettings({ wakeSound: 'off' });
   assert.equal(defaults.avatarRoaming, false);
+  assert.equal(defaults.avatarRoamWindows, false);
   assert.equal(defaults.avatarRoamIntervalSeconds, 120);
   for (const value of [
     { avatarRoaming: 'yes' },
+    { avatarRoamWindows: 'yes' },
     { avatarRoamIntervalSeconds: 29 },
     { avatarRoamIntervalSeconds: 1801 },
     { avatarRoamIntervalSeconds: NaN },
@@ -28,7 +30,7 @@ test('old settings upgrade to opt-in roaming; frequency is bounded and persists'
   t.after(() => rmSync(folder, { recursive: true, force: true }));
   const file = path.join(folder, 'settings.json');
   const saved = new Preferences(file, COMPANION_DEFAULTS, validateCompanionSettings);
-  saved.set({ ...defaults, ...on });
+  saved.set({ ...defaults, ...on, avatarRoamWindows: true });
   assert.deepEqual(
     new Preferences(file, COMPANION_DEFAULTS, validateCompanionSettings).snapshot(),
     saved.snapshot(),

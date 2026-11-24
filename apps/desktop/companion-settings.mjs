@@ -31,6 +31,7 @@ export const COMPANION_DEFAULTS = Object.freeze({
   avatarTapGapSeconds: 10,
   avatarSnapRadius: 36,
   avatarRoaming: false,
+  avatarRoamWindows: false,
   avatarRoamIntervalSeconds: 120,
   avatarDragTether: true,
   avatarDragTetherIntensity: 45,
@@ -79,6 +80,7 @@ export function validateCompanionSettings(value) {
     next.avatarSnapRadius > 100 ||
     typeof next.avatarDragTether !== 'boolean' ||
     typeof next.avatarRoaming !== 'boolean' ||
+    typeof next.avatarRoamWindows !== 'boolean' ||
     !Number.isInteger(next.avatarRoamIntervalSeconds) ||
     next.avatarRoamIntervalSeconds < 30 ||
     next.avatarRoamIntervalSeconds > 1800 ||
